@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_003_fcn_bcetest"
+    EXPERIMENT_NAME = "WJH_004_unetefficientnetb2"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -10,7 +10,7 @@ class Config:
 
     # [1] 파일 선택
     DATASET_FILE = 'dataset.dataset'
-    MODEL_FILE = 'model.model_fcn'
+    MODEL_FILE = 'model.model_unet'
     
     # [2] 학습 환경
     DATA_ROOT = "../data" 
@@ -23,7 +23,7 @@ class Config:
         os.makedirs(SAVED_DIR)
 
     RESIZE_SIZE = (512, 512)
-    BATCH_SIZE = 8
+    BATCH_SIZE = 8  
     NUM_WORKERS = 4
     NUM_EPOCHS = 200
     
@@ -64,7 +64,7 @@ class Config:
     # 3. 'Combined_BCE_Dice' : 학습 안정성 + 성능 밸런스형 (추천)
     # 4. 'Combined_Focal_Dice': 캐글 등 상위 랭커들이 가장 많이 쓰는 조합 (강력 추천)
     # util.py 참고
-    LOSS_FUNCTION = 'BCE'
+    LOSS_FUNCTION = 'Combined_Focal_Dice'
 
     # [비율 설정] (앞쪽 Loss, 뒤쪽 Loss)
     # 예: (0.5, 0.5) -> 반반 (기본값)

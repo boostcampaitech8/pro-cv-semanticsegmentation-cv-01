@@ -13,8 +13,8 @@ def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            # [필수] 이미지 정규화
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            # 여기에 Flip, Rotate 등 Augmentation 추가 가능
         ])
     else:
         return A.Compose([
@@ -24,6 +24,7 @@ def get_transforms(is_train=True):
 
 class XRayDataset(Dataset):
     def __init__(self, is_train=True, transforms=None):
+        # ... (파일 로드 부분 기존과 동일) ...
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
             for root, _dirs, files in os.walk(Config.IMAGE_ROOT)
@@ -69,14 +70,12 @@ class XRayDataset(Dataset):
         image_path = os.path.join(Config.IMAGE_ROOT, image_name)
         
         image = cv2.imread(image_path)
-        # 이미지 로드 실패 시 예외처리 (디버깅용)
         if image is None:
             raise FileNotFoundError(f"이미지를 찾을 수 없습니다: {image_path}")
             
         label_name = self.labelnames[item]
         label_path = os.path.join(Config.LABEL_ROOT, label_name)
         
-        # (H, W, Class) 형태의 빈 마스크 생성
         label_shape = tuple(image.shape[:2]) + (len(Config.CLASSES), )
         label = np.zeros(label_shape, dtype=np.uint8)
         
@@ -86,21 +85,22 @@ class XRayDataset(Dataset):
         for ann in annotations:
             c = ann["label"]
             class_ind = Config.CLASS2IND[c]
-            
-            # [핵심 수정] 좌표를 반드시 int32로 변환해야 fillPoly 에러가 안 남!
             points = np.array(ann["points"], dtype=np.int32)
             
             class_label = np.zeros(image.shape[:2], dtype=np.uint8)
             cv2.fillPoly(class_label, [points], 1)
             label[..., class_ind] = class_label
         
+        # [수정된 핵심 부분]
+        # Train/Valid 여부와 상관없이 항상 이미지와 마스크를 함께 Transform에 넘깁니다.
+        # 이렇게 해야 Valid 때도 마스크가 512x512로 리사이즈됩니다.
         if self.transforms is not None:
-            inputs = {"image": image, "mask": label} if self.is_train else {"image": image}
+            inputs = {"image": image, "mask": label}
             result = self.transforms(**inputs)
+            
             image = result["image"]
-            label = result["mask"] if self.is_train else label
+            label = result["mask"]
 
-        # (H, W, C) -> (C, H, W) 변환
         image = image.transpose(2, 0, 1)
         label = label.transpose(2, 0, 1)
         
@@ -108,10 +108,7 @@ class XRayDataset(Dataset):
     
 class XRayInferenceDataset(Dataset):
     def __init__(self, transforms=None):
-        # 테스트 이미지 경로 설정 (Config에 정의된 경로 사용)
         self.image_root = Config.TEST_IMAGE_ROOT
-        
-        # 폴더 내 모든 png 파일 리스트업
         self.filenames = np.array(sorted([
             os.path.relpath(os.path.join(root, fname), start=self.image_root)
             for root, _dirs, files in os.walk(self.image_root)
@@ -132,12 +129,9 @@ class XRayInferenceDataset(Dataset):
             raise FileNotFoundError(f"Image not found: {image_path}")
             
         if self.transforms is not None:
-            # 테스트 시에는 mask 없이 image만 변환
             result = self.transforms(image=image)
             image = result["image"]
 
-        # (H, W, C) -> (C, H, W)
         image = image.transpose(2, 0, 1)
         
-        # 이미지 이름도 함께 리턴해야 나중에 submission 파일 작성이 편합니다.
         return torch.from_numpy(image).float(), image_name
