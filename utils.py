@@ -33,6 +33,8 @@ def encode_mask_to_rle(mask):
     runs[1::2] -= runs[::2]
     return ' '.join(str(x) for x in runs)
 
+# 0. BCE와 DICE는 train.py에서 라이브러리로 구현
+
 # 1. Focal Loss
 class FocalLoss(nn.Module):
     def __init__(self, alpha=Config.FOCAL_ALPHA, gamma=Config.FOCAL_GAMMA, reduction='mean'):
