@@ -1,0 +1,143 @@
+import os
+import cv2
+import json
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+import albumentations as A
+from sklearn.model_selection import GroupKFold
+
+from config import Config
+
+def get_transforms(is_train=True):
+    if is_train:
+        return A.Compose([
+            A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            # [필수] 이미지 정규화
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ])
+    else:
+        return A.Compose([
+            A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ])
+
+class XRayDataset(Dataset):
+    def __init__(self, is_train=True, transforms=None):
+        pngs = {
+            os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
+            for root, _dirs, files in os.walk(Config.IMAGE_ROOT)
+            for fname in files
+            if os.path.splitext(fname)[1].lower() == ".png"
+        }
+        jsons = {
+            os.path.relpath(os.path.join(root, fname), start=Config.LABEL_ROOT)
+            for root, _dirs, files in os.walk(Config.LABEL_ROOT)
+            for fname in files
+            if os.path.splitext(fname)[1].lower() == ".json"
+        }
+        
+        _filenames = np.array(sorted(pngs))
+        _labelnames = np.array(sorted(jsons))
+        
+        groups = [os.path.dirname(fname) for fname in _filenames]
+        ys = [0 for fname in _filenames]
+        gkf = GroupKFold(n_splits=5)
+        
+        filenames = []
+        labelnames = []
+        for i, (x, y) in enumerate(gkf.split(_filenames, ys, groups)):
+            if is_train:
+                if i == 0: continue
+                filenames += list(_filenames[y])
+                labelnames += list(_labelnames[y])
+            else:
+                filenames = list(_filenames[y])
+                labelnames = list(_labelnames[y])
+                break
+        
+        self.filenames = filenames
+        self.labelnames = labelnames
+        self.is_train = is_train
+        self.transforms = transforms
+    
+    def __len__(self):
+        return len(self.filenames)
+    
+    def __getitem__(self, item):
+        image_name = self.filenames[item]
+        image_path = os.path.join(Config.IMAGE_ROOT, image_name)
+        
+        image = cv2.imread(image_path)
+        # 이미지 로드 실패 시 예외처리 (디버깅용)
+        if image is None:
+            raise FileNotFoundError(f"이미지를 찾을 수 없습니다: {image_path}")
+            
+        label_name = self.labelnames[item]
+        label_path = os.path.join(Config.LABEL_ROOT, label_name)
+        
+        # (H, W, Class) 형태의 빈 마스크 생성
+        label_shape = tuple(image.shape[:2]) + (len(Config.CLASSES), )
+        label = np.zeros(label_shape, dtype=np.uint8)
+        
+        with open(label_path, "r") as f:
+            annotations = json.load(f)["annotations"]
+        
+        for ann in annotations:
+            c = ann["label"]
+            class_ind = Config.CLASS2IND[c]
+            
+            # [핵심 수정] 좌표를 반드시 int32로 변환해야 fillPoly 에러가 안 남!
+            points = np.array(ann["points"], dtype=np.int32)
+            
+            class_label = np.zeros(image.shape[:2], dtype=np.uint8)
+            cv2.fillPoly(class_label, [points], 1)
+            label[..., class_ind] = class_label
+        
+        if self.transforms is not None:
+            inputs = {"image": image, "mask": label} if self.is_train else {"image": image}
+            result = self.transforms(**inputs)
+            image = result["image"]
+            label = result["mask"] if self.is_train else label
+
+        # (H, W, C) -> (C, H, W) 변환
+        image = image.transpose(2, 0, 1)
+        label = label.transpose(2, 0, 1)
+        
+        return torch.from_numpy(image).float(), torch.from_numpy(label).float()
+    
+class XRayInferenceDataset(Dataset):
+    def __init__(self, transforms=None):
+        # 테스트 이미지 경로 설정 (Config에 정의된 경로 사용)
+        self.image_root = Config.TEST_IMAGE_ROOT
+        
+        # 폴더 내 모든 png 파일 리스트업
+        self.filenames = np.array(sorted([
+            os.path.relpath(os.path.join(root, fname), start=self.image_root)
+            for root, _dirs, files in os.walk(self.image_root)
+            for fname in files
+            if os.path.splitext(fname)[1].lower() == ".png"
+        ]))
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.filenames)
+
+    def __getitem__(self, item):
+        image_name = self.filenames[item]
+        image_path = os.path.join(self.image_root, image_name)
+        
+        image = cv2.imread(image_path)
+        if image is None:
+            raise FileNotFoundError(f"Image not found: {image_path}")
+            
+        if self.transforms is not None:
+            # 테스트 시에는 mask 없이 image만 변환
+            result = self.transforms(image=image)
+            image = result["image"]
+
+        # (H, W, C) -> (C, H, W)
+        image = image.transpose(2, 0, 1)
+        
+        # 이미지 이름도 함께 리턴해야 나중에 submission 파일 작성이 편합니다.
+        return torch.from_numpy(image).float(), image_name
