@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_004_unetefficientnetb2"
+    EXPERIMENT_NAME = "WJH_005_unetefficientnetb2"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -31,6 +31,7 @@ class Config:
     # ========================================================
     USE_EARLY_STOPPING = True   # True: 성능 향상 없으면 조기 종료 / False: 무조건 끝까지 학습
     EARLY_STOPPING_PATIENCE = 3 # 몇 번 참을지
+    EARLY_STOPPING_MIN_DELTA = 0.005 # 이만큼 올라야 오른걸로 치겠다
     
     SAVE_BEST_MODEL = True      # True: 최고 점수 갱신 시 저장 / False: 저장 안 함 (마지막 모델만 남음)
     # ========================================================
@@ -64,7 +65,7 @@ class Config:
     # 3. 'Combined_BCE_Dice' : 학습 안정성 + 성능 밸런스형 (추천)
     # 4. 'Combined_Focal_Dice': 캐글 등 상위 랭커들이 가장 많이 쓰는 조합 (강력 추천)
     # util.py 참고
-    LOSS_FUNCTION = 'Combined_Focal_Dice'
+    LOSS_FUNCTION = 'Dice'
 
     # [비율 설정] (앞쪽 Loss, 뒤쪽 Loss)
     # 예: (0.5, 0.5) -> 반반 (기본값)
