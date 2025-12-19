@@ -37,5 +37,37 @@ def main():
 
     print(f"\nAll processes finished. Check submission_{Config.EXPERIMENT_NAME}.csv")
 
+# run_exp.py 하단 수정
+
 if __name__ == '__main__':
+    import argparse
+
+    # 1. 인자 파서 생성
+    parser = argparse.ArgumentParser()
+    
+    # 바꾸고 싶은 설정들만 argument로 추가
+    parser.add_argument('--exp_name', type=str, default=None)
+    parser.add_argument('--model_file', type=str, default=None)
+    parser.add_argument('--dataset_file', type=str, default=None)
+    parser.add_argument('--loss', type=str, default=None)
+    parser.add_argument('--lr', type=float, default=None)
+    parser.add_argument('--epoch', type=int, default=None)
+    
+    args = parser.parse_args()
+
+    # 2. Config 덮어쓰기 (입력된 값만)
+    if args.exp_name: 
+        Config.EXPERIMENT_NAME = args.exp_name
+        Config.WANDB_RUN_NAME = args.exp_name # WandB 이름도 같이 변경
+        Config.SAVED_DIR = os.path.join("checkpoints", args.exp_name) # 저장 경로도 변경
+        if not os.path.exists(Config.SAVED_DIR):
+            os.makedirs(Config.SAVED_DIR)
+
+    if args.model_file: Config.MODEL_FILE = args.model_file
+    if args.dataset_file: Config.DATASET_FILE = args.dataset_file
+    if args.loss: Config.LOSS_FUNCTION = args.loss
+    if args.lr: Config.LR = args.lr
+    if args.epoch: Config.NUM_EPOCHS = args.epoch
+
+    # 3. 메인 실행
     main()
