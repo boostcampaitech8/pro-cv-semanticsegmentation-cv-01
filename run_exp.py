@@ -1,9 +1,9 @@
 import sys
 import os
+import importlib
 
 # 각 모듈에서 실행 함수 가져오기
 from train import train
-from inference import test
 from config import Config
 
 def main():
@@ -23,7 +23,13 @@ def main():
     # 2. 추론 시작
     print("\n>>> [Stage 2] Start Inference...")
     try:
-        test() # inference.py의 test() 함수 실행
+        inference_module = importlib.import_module(Config.INFERENCE_FILE)
+        
+        # 불러온 파일 안에서 'test' 라는 이름의 함수를 찾습니다.
+        test_func = getattr(inference_module, 'test')
+        
+        # 함수 실행
+        test_func()
         print(">>> [Stage 2] Inference Completed Successfully.")
     except Exception as e:
         print(f"\n[ERROR] Inference failed: {e}")
