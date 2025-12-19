@@ -29,28 +29,28 @@ class XRayDataset(Dataset):
         # =============================================================
         exclude_ids = ["ID363", "ID387"]  # 필요한 만큼 추가
 
-        # =============================================================
-        # 2. 이미지 파일 로드 (필터링 적용)
+# =============================================================
+        # 2. 이미지 파일 로드 (수정됨: 전체 경로 검사)
         # =============================================================
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
             for root, _dirs, files in os.walk(Config.IMAGE_ROOT)
             for fname in files
             if os.path.splitext(fname)[1].lower() == ".png"
-            # [필터링] 제외 ID가 파일 경로에 포함되지 않은 것만 가져옴
-            and not any(ex_id in fname for ex_id in exclude_ids)
+            # [핵심 수정] fname(파일명)이 아니라 os.path.join(root, fname)(전체경로)를 검사해야 함
+            and not any(ex_id in os.path.join(root, fname) for ex_id in exclude_ids)
         }
         
         # =============================================================
-        # 3. 라벨 파일 로드 (여기에도 필터링 필수 적용!)
+        # 3. 라벨 파일 로드 (수정됨: 전체 경로 검사)
         # =============================================================
         jsons = {
             os.path.relpath(os.path.join(root, fname), start=Config.LABEL_ROOT)
             for root, _dirs, files in os.walk(Config.LABEL_ROOT)
             for fname in files
             if os.path.splitext(fname)[1].lower() == ".json"
-            # [수정] 이미지와 똑같이 제외 ID가 포함된 라벨은 리스트에서 뺍니다.
-            and not any(ex_id in fname for ex_id in exclude_ids)
+            # [핵심 수정] 여기도 마찬가지로 전체 경로(root + fname)에서 검사
+            and not any(ex_id in os.path.join(root, fname) for ex_id in exclude_ids)
         }
         
         # 디버깅용 출력
