@@ -13,58 +13,36 @@ def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            # [수정] A.Normalize 제거됨 (단순 0~255 값 유지)
             # 여기에 Flip, Rotate 등 Augmentation 추가 가능
         ])
     else:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            # [수정] A.Normalize 제거됨
         ])
 
 class XRayDataset(Dataset):
     def __init__(self, is_train=True, transforms=None):
-        # =============================================================
-        # 1. 제외할 ID 목록 정의
-        # =============================================================
-        exclude_ids = ["ID363", "ID387"]  # 필요한 만큼 추가
-
-        # =============================================================
-        # 2. 이미지 파일 로드 (필터링 적용)
-        # =============================================================
+        # ... (파일 로드 부분 기존과 동일) ...
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
             for root, _dirs, files in os.walk(Config.IMAGE_ROOT)
             for fname in files
             if os.path.splitext(fname)[1].lower() == ".png"
-            # [필터링] 제외 ID가 파일 경로에 포함되지 않은 것만 가져옴
-            and not any(ex_id in fname for ex_id in exclude_ids)
         }
         
-        # =============================================================
-        # 3. 라벨 파일 로드 (여기에도 필터링 필수 적용!)
-        # =============================================================
+        
         jsons = {
             os.path.relpath(os.path.join(root, fname), start=Config.LABEL_ROOT)
             for root, _dirs, files in os.walk(Config.LABEL_ROOT)
             for fname in files
             if os.path.splitext(fname)[1].lower() == ".json"
-            # [수정] 이미지와 똑같이 제외 ID가 포함된 라벨은 리스트에서 뺍니다.
-            and not any(ex_id in fname for ex_id in exclude_ids)
         }
-        
-        # 디버깅용 출력
-        print(f">> [Dataset] {len(exclude_ids)}개의 Artifact ID 제외 완료.")
-        print(f"   - Images: {len(pngs)}장")
-        print(f"   - Labels: {len(jsons)}장")
-        
-        # 개수 일치 확인 (안전장치)
-        assert len(pngs) == len(jsons), f"이미지와 라벨 개수가 다릅니다! (Img: {len(pngs)}, Lbl: {len(jsons)})"
         
         _filenames = np.array(sorted(pngs))
         _labelnames = np.array(sorted(jsons))
         
-        # ... (이하 GroupKFold 로직 동일) ...
         groups = [os.path.dirname(fname) for fname in _filenames]
         ys = [0 for fname in _filenames]
         gkf = GroupKFold(n_splits=5)
@@ -115,15 +93,15 @@ class XRayDataset(Dataset):
             cv2.fillPoly(class_label, [points], 1)
             label[..., class_ind] = class_label
         
-        # [수정된 핵심 부분]
-        # Train/Valid 여부와 상관없이 항상 이미지와 마스크를 함께 Transform에 넘깁니다.
-        # 이렇게 해야 Valid 때도 마스크가 512x512로 리사이즈됩니다.
         if self.transforms is not None:
             inputs = {"image": image, "mask": label}
             result = self.transforms(**inputs)
             
             image = result["image"]
             label = result["mask"]
+
+        # [핵심 수정] 0~255 이미지를 0~1로 스케일링
+        image = image.astype(np.float32) / 255.0
 
         image = image.transpose(2, 0, 1)
         label = label.transpose(2, 0, 1)
@@ -155,6 +133,9 @@ class XRayInferenceDataset(Dataset):
         if self.transforms is not None:
             result = self.transforms(image=image)
             image = result["image"]
+
+        # [핵심 수정] 0~255 이미지를 0~1로 스케일링
+        image = image.astype(np.float32) / 255.0
 
         image = image.transpose(2, 0, 1)
         
