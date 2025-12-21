@@ -11,6 +11,7 @@
     ├── model/               # 모델 정의 모듈
     │   ├── model_unet.py        # UNet 기본
     │   ├── model_unet++.py      # UNet++
+    │   ├── model_nnunet.py      # nnUNetv2 (Residual 2D Implementation)
     │   ├── model_fcn.py         # FCN
     │   ├── model_deeplabv3plus.py # DeepLabV3+
     │   ├── model_manet.py       # MAnet
