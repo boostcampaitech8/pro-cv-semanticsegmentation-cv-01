@@ -1,3 +1,5 @@
+    ├── checkpoints/         # 모델 가중치 저장
+    │   └── Base_UNet/         # Base UNet 모델 (다른 실험들과 성능 비교용 기준 모델)
     ├── dataset/             # 데이터셋 로드 및 전처리 모듈
     │   ├── dataset.py          # 기본 데이터셋
     │   ├── dataset_exclude.py  # Artifact 제거 데이터셋
@@ -20,5 +22,5 @@
     ├── schedule.py          # 학습 스케줄링 관련
     ├── train.py             # 학습 루프 (Validation 및 Model Saving)
     ├── utils.py             # Dice Score, RLE Encoding 등 유틸리티
-    ├── visualize.py         # 시각화 도구
+    ├── visualize.ipynb      # 시각화 노트북 (인터랙티브 분석용)
     └── sample_submission.csv
