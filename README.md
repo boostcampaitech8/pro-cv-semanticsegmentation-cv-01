@@ -1,27 +1,108 @@
-    ├── checkpoints/         # 모델 가중치 저장
-    │   └── Base_UNet/         # Base UNet 모델 (다른 실험들과 성능 비교용 기준 모델)
-    ├── dataset/             # 데이터셋 로드 및 전처리 모듈
-    │   ├── dataset.py          # 기본 데이터셋
-    │   ├── dataset_exclude.py  # Artifact 제거 데이터셋
-    │   └── dataset_xnormalize.py # 정규화 제거 데이터셋
-    ├── eda/                 # 탐색적 데이터 분석
-    │   ├── EDA.ipynb           # 기본 EDA
-    │   ├── eda_meta.ipynb       # 메타데이터 분석
-    │   └── fiftyone.ipynb       # Fiftyone 시각화
-    ├── model/               # 모델 정의 모듈
-    │   ├── model_unet.py        # UNet 기본
-    │   ├── model_unet++.py      # UNet++
-    │   ├── model_nnunet.py      # nnUNetv2 (Residual 2D Implementation)
-    │   ├── model_fcn.py         # FCN
-    │   ├── model_deeplabv3plus.py # DeepLabV3+
-    │   ├── model_manet.py       # MAnet
-    │   └── model_segformer.py   # SegFormer
-    ├── inference/           # 추론 로직 모듈
-    │   └── inference.py        # 추론 실행, 이후 TTA, window slide 등 다른 버전들 추가
-    ├── config.py            # [Control Center] 모든 실험 하이퍼파라미터 및 경로 설정
-    ├── run_exp.py           # [Main Executor] 학습부터 추론까지 한 번에 실행 (Dynamic Loading + CLI Args)
-    ├── schedule.py          # 학습 스케줄링 관련
-    ├── train.py             # 학습 루프 (Validation 및 Model Saving)
-    ├── utils.py             # Dice Score, RLE Encoding 등 유틸리티
-    ├── visualize.ipynb      # 시각화 노트북 (인터랙티브 분석용)
-    └── sample_submission.csv
+# 🦴 Hand Bone Semantic Segmentation (CV-01)
+
+본 프로젝트는 손 엑스레이(Hand X-ray) 영상에서 29종의 주요 본(Bone) 영역을 정밀하게 분할하는 의료 영상 세그멘테이션 프로젝트입니다.
+
+---
+
+## 📁 디렉토리 구조 (Directory Structure)
+
+```text
+.
+├── checkpoints/         # 모델 가중치 저장 및 관리
+│   └── LBH_004_nnUNetv2_512_25e/  # 실험별 체크포인트
+├── dataset/             # 데이터셋 로드 및 전처리 모듈
+│   ├── dataset.py          # 기본 데이터셋 로더
+│   ├── dataset_exclude.py  # Artifact(금속 등) 제외 로직 포함 로더
+│   └── dataset_xnormalize.py # 다양한 정규화 실험용 로더
+├── eda/                 # 탐색적 데이터 분석 (EDA)
+│   ├── EDA.ipynb           # 기본 이미지 및 라벨 분석
+│   ├── eda_meta.ipynb      # 환자 메타데이터 분석
+│   ├── fiftyone.ipynb      # Fiftyone을 활용한 데이터 시각화
+│   └── EDA_Img_processing.ipynb # 이미지 전처리 및 정렬 분석
+├── model/               # 모델 정의 모듈 (Architectures)
+│   ├── model_unet.py        # Baseline UNet
+│   ├── model_unet++.py      # Unet++
+│   ├── model_nnunet.py      # nnUNetv2 (Residual 2D Implementation)
+│   ├── model_fcn.py         # FCN
+│   ├── model_deeplabv3plus.py # DeepLabV3+
+│   ├── model_manet.py       # MAnet
+│   └── model_segformer.py   # SegFormer
+├── inference/           # 추론 및 결과 생성
+│   └── inference.py        # RLE 인코딩 및 submission.csv 생성
+├── config.py            # [Control Center] 모든 실험 설정 및 하이퍼파라미터
+├── run_exp.py           # [Main Executor] 학습-추론 자동화 스크립트
+├── schedule.py          # [Scheduler] 다중 실험 예약 및 자동 실행 스크립트
+├── train.py             # [Training Engine] 메인 학습 루프
+├── utils.py             # Loss 함수 및 각종 유틸리티
+├── visualize.ipynb      # 인터랙티브 결과 시각화
+└── sample_submission.csv
+```
+
+---
+
+## 🚀 프로젝트 핵심 기능 설명
+
+### 🛠 핵심 시스템
+- **`config.py`**: 모든 실험의 중앙 제어 장치입니다. `MODEL_FILE`, `DATASET_FILE`, `LOSS_FUNCTION`, `LR`, `Batch Size` 등을 여기서 한 번에 관리합니다.
+- **`run_exp.py`**: `train.py`와 `inference.py`를 순차적으로 실행합니다. CLI 인자(`--exp_name`, `--lr` 등)를 통해 `config.py` 설정을 동적으로 변경할 수 있어 효율적인 실험이 가능합니다.
+- **`schedule.py`**: **다중 실험 자동화 스크립트**입니다. `experiments` 리스트에 원하는 실험 조합(모델, 로스, 에폭 등)을 딕셔너리 형태로 나열하면, 순차적으로 `run_exp.py`를 호출하여 학습을 진행합니다. (자세한 사용법은 하단 참조)
+- **`train.py`**: 실질적인 학습을 담당하며, `torch.amp`를 이용한 혼합 정밀도 학습, WandB 로깅, 성능 기반 가중치 자동 저장 기능이 포함되어 있습니다.
+
+### 🍱 구성 요소 (Modules)
+- **`model/`**: `get_model()` 인터페이스를 통해 다양한 모델을 즉시 교체하여 실험할 수 있습니다. 
+- **`dataset/`**: 이미지와 JSON 라벨을 매칭하고, `exclude` 로직을 통해 데이터 품질을 관리합니다.
+- **`utils.py`**: `DiceLoss`, `FocalLoss`, `TverskyLoss` 등 세그멘테이션에 특화된 다양한 Loss 함수를 제공합니다.
+
+---
+
+## 🛠 사용 방법
+
+### 1. 설정 변경 (`config.py`)
+기본 실험 파라미터를 수정합니다.
+```python
+MODEL_FILE = 'model.model_nnunet'
+EXPERIMENT_NAME = 'nnUNetv2_Training_Run'
+```
+
+### 2. 단일 실험 실행
+```bash
+# 학습만 진행할 경우
+python train.py
+
+# 학습부터 CSV 생성까지 자동 실행할 경우
+python run_exp.py --exp_name test_run --model_file model.model_nnunet
+```
+
+### 3. 다중 실험 자동화 (`schedule.py`)
+여러 실험을 예약하여 자는 동안 혹은 다른 작업을 하는 동안 순차적으로 돌릴 수 있습니다.
+1. `schedule.py` 파일 내 `experiments` 리스트에 실험 설정 추가
+2. 스크립트 실행:
+```bash
+python schedule.py
+```
+
+### 4. 백그라운드 실행 및 로그 저장 (Linux 명령어)
+서버 접속이 끊겨도 학습이 유지되도록 하고, 모든 로그를 파일로 남기는 권장 방법입니다.
+```bash
+# nohup을 이용한 백그라운드 실행 (Config의 실험명 + 날짜/시간 사용)
+EXP_NAME=$(python3 -c 'from config import Config; print(Config.EXPERIMENT_NAME)') && \
+nohup python run_exp.py > ${EXP_NAME}_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+
+# 실시간으로 로그 확인하기 (가장 최근 생성된 로그 파일)
+tail -f $(ls -t *.log | head -n 1)
+```
+
+---
+
+## 📈 진행 현황 및 로드맵
+- [x] **Baselines**: 다양한 세그멘테이션 모델 성능 벤치마크 완료
+- [x] **Data Cleaning**: Artifact 포함 샘플(ID363, ID387 등) 필터링 적용
+- [x] **Model Advanced**: nnUNetv2 아키텍처 도입 (Mean Dice 0.967+ 달성)
+- [ ] **Preprocessing**: 뼈 좌표 기반의 정렬(Alignment) 고도화 진행 중
+- [ ] **Advanced Training**: Deep Supervision 기반의 Loss 가중치 최적화
+
+---
+
+## 👥 팀 정보
+- **Team**: Boostcamp AI Tech 8기 CV-01
+- **Focus**: Precision Medical Image Segmentation
