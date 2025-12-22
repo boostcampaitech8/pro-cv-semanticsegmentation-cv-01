@@ -6,6 +6,9 @@ import pandas as pd
 import os
 import importlib
 import numpy as np
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 
 from config import Config
 from utils import encode_mask_to_rle
