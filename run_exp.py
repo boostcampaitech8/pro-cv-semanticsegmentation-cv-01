@@ -52,6 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default=None)
     parser.add_argument('--lr', type=float, default=None)
     parser.add_argument('--epoch', type=int, default=None)
+    parser.add_argument('--resize_size', type=int, nargs='+', default=None, help="Input one int (square) or two ints (H W)")
     
     args = parser.parse_args()
 
@@ -68,6 +69,16 @@ if __name__ == '__main__':
     if args.loss: Config.LOSS_FUNCTION = args.loss
     if args.lr: Config.LR = args.lr
     if args.epoch: Config.NUM_EPOCHS = args.epoch
+    if args.resize_size:
+        # 숫자가 1개만 들어오면 (예: 512) -> (512, 512)로 변환
+        if len(args.resize_size) == 1:
+            size = args.resize_size[0]
+            Config.RESIZE_SIZE = (size, size)
+        # 숫자가 2개 들어오면 (예: 512 1024) -> 그대로 튜플로 변환
+        elif len(args.resize_size) == 2:
+            Config.RESIZE_SIZE = tuple(args.resize_size)
+        else:
+            raise ValueError("resize_size는 숫자 1개 또는 2개만 입력 가능합니다.")
 
     # 3. 메인 실행
     main()
