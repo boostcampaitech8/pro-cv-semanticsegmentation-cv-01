@@ -9,7 +9,7 @@
 ```text
 .
 ├── checkpoints/         # 모델 가중치 저장 및 관리
-│   └── LBH_004_nnUNetv2_512_25e/  # 실험별 체크포인트
+│   └── Base_UNet/          # 베이스 모델 가중치
 ├── dataset/             # 데이터셋 로드 및 전처리 모듈
 │   ├── dataset.py          # 기본 데이터셋 로더
 │   ├── dataset_exclude.py  # Artifact(금속 등) 제외 로직 포함 로더
