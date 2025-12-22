@@ -146,3 +146,38 @@ class XRayDataset(Dataset):
             mask = torch.from_numpy(mask).permute(2, 0, 1).float()
 
         return image, mask
+        
+class XRayInferenceDataset(Dataset):
+    def __init__(self, transforms=None):
+        self.image_root = Config.TEST_IMAGE_ROOT
+        self.filenames = np.array(sorted([
+            os.path.relpath(os.path.join(root, fname), start=self.image_root)
+            for root, _dirs, files in os.walk(self.image_root)
+            for fname in files
+            if os.path.splitext(fname)[1].lower() == ".png"
+        ]))
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.filenames)
+
+    def __getitem__(self, item):
+        image_name = self.filenames[item]
+        image_path = os.path.join(self.image_root, image_name)
+        
+        image = cv2.imread(image_path)
+        if image is None:
+            raise FileNotFoundError(f"Image not found: {image_path}")
+            
+        if self.transforms is not None:
+            result = self.transforms(image=image)
+            image = result["image"]
+
+        #     이미 Tensor이고 CHW 형태임
+        # 하지만 transforms 없거나 ToTensorV2가 없는 경우를 대비
+        if isinstance(image, np.ndarray):
+            image = image.transpose(2, 0, 1) # HWC -> CHW
+            return torch.from_numpy(image).float(), image_name
+            
+        # Tensor인 경우 (ToTensorV2 적용됨)
+        return image.float(), image_name
