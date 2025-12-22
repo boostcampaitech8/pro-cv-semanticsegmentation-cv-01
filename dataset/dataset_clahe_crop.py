@@ -17,6 +17,10 @@ def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
             # 🔥 [핵심] 100% 확률(p=1.0)로 둘 중 하나를 실행 -> 결과물은 무조건 512x512
+
+            # 🔥 [수정] Valid(Resize 후 CLAHE)와 분포를 맞추기 위해 Grid Size를 키움 (32x32)
+            # 원본(2048)에서 32등분 -> 약 64px (Valid 512에서 8등분 -> 64px)
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(32, 32), p=1.0),
             A.OneOf([
                 # 옵션 1: 줌인 (확대 학습) - 디테일
                 A.RandomResizedCrop(
@@ -34,8 +38,6 @@ def get_transforms(is_train=True):
                 )
             ], p=1.0), 
             
-            # 선명도 강화 (Train/Valid 모두 적용)
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
             
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             

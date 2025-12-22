@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_009_unetb2_dicetest_25e_exclude"
+    EXPERIMENT_NAME = "WJH_011_unetb2_clahe_crop"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -9,7 +9,7 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_exclude'
+    DATASET_FILE = 'dataset.dataset_clahe_crop'
     MODEL_FILE = 'model.model_unet'
     INFERENCE_FILE = 'inference.inference'
     
@@ -26,18 +26,18 @@ class Config:
     RESIZE_SIZE = (512, 512)
     BATCH_SIZE = 8  
     NUM_WORKERS = 4
-    NUM_EPOCHS = 25
+    NUM_EPOCHS = 100
     
     # [2] 학습 제어 설정 (NEW)
     # ========================================================
     USE_EARLY_STOPPING = False   # True: 성능 향상 없으면 조기 종료 / False: 무조건 끝까지 학습
-    EARLY_STOPPING_PATIENCE = 2 # 몇 번 참을지
-    EARLY_STOPPING_MIN_DELTA = 0.005 # 이만큼 올라야 오른걸로 치겠다
+    EARLY_STOPPING_PATIENCE = 1 # 몇 번 참을지
+    EARLY_STOPPING_MIN_DELTA = 0.002 # 이만큼 올라야 오른걸로 치겠다
     
     SAVE_BEST_MODEL = True      # True: 최고 점수 갱신 시 저장 / False: 저장 안 함 (마지막 모델만 남음)
     # ========================================================
 
-    VAL_EVERY = 25               # 몇 Epoch마다 검증할지
+    VAL_EVERY = 5               # 몇 Epoch마다 검증할지
     WANDB_VIS_EVERY = 5
     
     LR = 1e-4

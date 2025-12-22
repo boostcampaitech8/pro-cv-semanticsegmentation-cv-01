@@ -13,16 +13,18 @@ def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            
 
             # 여기에 Flip, Rotate 등 Augmentation 추가 가능
         ])
     else:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            
 
         ])
 
