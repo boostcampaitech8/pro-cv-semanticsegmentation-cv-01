@@ -1,7 +1,7 @@
+
 import os
 import cv2
 import json
-
 import random
 import numpy as np
 import torch
@@ -15,83 +15,36 @@ from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 
 from config import Config
 
-# [USER CONFIG AREA] match dataset_final.py style!
-def get_transforms(is_train=True):
-    if is_train:
-        return A.Compose([
-            A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
-            A.ShiftScaleRotate(
-                shift_limit=0.05, 
-                scale_limit=0.05,
-                rotate_limit=20,     
-                p=0.5,              
-                border_mode=0       
-            ),
-            # A.HorizontalFlip(p=0.5), # Uncomment to enable
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ])
-    else:
-        return A.Compose([
-            A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0), 
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ])
-
+# ============================================================
 # [LOGIC] Parse A.Compose to separate DALI (GPU) vs CPU ops
+# This mimics dataset_final.py's get_transforms structure
+# ============================================================
 class DaliTransformParser:
-    def __init__(self, transforms, is_train=True):
+    def __init__(self, is_train=True):
         self.is_train = is_train
         
-        # Defaults
-        self.resize_shape = Config.RESIZE_SIZE # Default from Config
-        
-        self.use_geometric = False
-        self.geo_prob = 0.5
-        self.rotate_limit = 0
-        self.scale_limit = 0
-        self.shift_limit = 0
-        
-        self.use_hflip = False
-        self.hflip_prob = 0.5
-        
+        # Defaults based on dataset_final.py
+        self.resize_shape = Config.RESIZE_SIZE 
         self.mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
         self.std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
         
-        self.cpu_transforms = []
+        # CPU Transforms (CLAHE, etc.)
+        self.cpu_transforms = [
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0)
+        ]
+        self.cpu_compose = A.Compose(self.cpu_transforms)
         
-        if transforms:
-            for t in transforms:
-                if isinstance(t, A.Resize):
-                    self.resize_shape = (t.height, t.width)
-                    # Do not add Resize to cpu_transforms (handled manually)
-                elif isinstance(t, A.ShiftScaleRotate):
-                    self.use_geometric = True
-                    self.geo_prob = t.p
-                    # Access tuple limits (min, max). We usually want the max extent for limit.
-                    # shift_limit is usually symmetric if passed as float.
-                    # A.ShiftScaleRotate stores it as shift_limit_x, shift_limit_y tuples.
-                    self.rotate_limit = max(abs(t.rotate_limit[0]), abs(t.rotate_limit[1]))
-                    self.scale_limit = max(abs(t.scale_limit[0]), abs(t.scale_limit[1]))
-                    # Take max of x/y shift
-                    sx = max(abs(t.shift_limit_x[0]), abs(t.shift_limit_x[1]))
-                    sy = max(abs(t.shift_limit_y[0]), abs(t.shift_limit_y[1]))
-                    self.shift_limit = max(sx, sy)
-                elif isinstance(t, A.HorizontalFlip):
-                    self.use_hflip = True
-                    self.hflip_prob = t.p
-                elif isinstance(t, A.Normalize):
-                    self.mean = [m * 255 for m in t.mean]
-                    self.std = [s * 255 for s in t.std]
-                elif isinstance(t, (A.Compose, A.OneOf)):
-                     pass
-                else:
-                    # Treat as CPU transform (e.g., CLAHE, Crop, Noise)
-                    self.cpu_transforms.append(t)
+        # DALI Geometric Transforms Parameters
+        # Hardcoded to match dataset_final.py's A.ShiftScaleRotate
+        self.use_geometric = True
+        self.geo_prob = 0.5
+        self.rotate_limit = 20
+        self.scale_limit = 0.05
+        self.shift_limit = 0.05
         
-        # Create separate compose for CPU parts
-        self.cpu_compose = A.Compose(self.cpu_transforms) if self.cpu_transforms else None
-        
+        self.use_hflip = False 
+        self.hflip_prob = 0.5
+
     def get_affine_matrix(self, h, w):
         matrix = np.eye(3, dtype=np.float32)[:2, :] 
         
@@ -109,17 +62,14 @@ class DaliTransformParser:
             
         return matrix
 
+# ============================================================
+# External Source (v4: v2 + Robust Shuffle)
+# ============================================================
 class XRayExternalSource:
     def __init__(self, is_train=True):
         self.is_train = is_train
-        
-        # 1. Get User Transforms
-        transforms = get_transforms(is_train)
-        
-        # 2. Parse them for DALI
-        self.parser = DaliTransformParser(transforms, is_train)
+        self.parser = DaliTransformParser(is_train)
             
-        # --- Data Loading Logic ---
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
             for root, _dirs, files in os.walk(Config.IMAGE_ROOT)
@@ -142,53 +92,52 @@ class XRayExternalSource:
         
         filenames = []
         labelnames = []
+        val_fold = getattr(Config, 'VAL_FOLD', 4)
+
         for i, (x, y) in enumerate(gkf.split(_filenames, ys, groups)):
-            if is_train:
-                if i == 4: continue
+            if (i == val_fold) ^ is_train:
                 filenames += list(_filenames[y])
                 labelnames += list(_labelnames[y])
-            else:
-                if i == 4:
-                    filenames = list(_filenames[y])
-                    labelnames = list(_labelnames[y])
-                    break
         
-        self.filenames = filenames
-        self.labelnames = labelnames
+        self.filenames = list(filenames)
+        self.labelnames = list(labelnames)
         self.n = len(self.filenames)
         
-        if self.is_train:
-            combined = list(zip(self.filenames, self.labelnames))
-            random.shuffle(combined)
-            self.filenames, self.labelnames = zip(*combined)
-            self.filenames = list(self.filenames)
-            self.labelnames = list(self.labelnames)
+        # [v4] Indices list for shuffling
+        self.indices = list(range(self.n))
+        if is_train:
+            random.shuffle(self.indices)
+
+    def __len__(self):
+        return self.n
 
     def __call__(self, sample_info):
-        idx = sample_info.idx_in_epoch
-        if idx >= self.n:
-            idx = idx % self.n
+        # [v4] Use indirect indexing for easy shuffling
+        idx_in_epoch = sample_info.idx_in_epoch
+        if idx_in_epoch >= self.n: idx_in_epoch %= self.n
+        
+        real_idx = self.indices[idx_in_epoch]
             
-        image_name = self.filenames[idx]
+        image_name = self.filenames[real_idx]
         image_path = os.path.join(Config.IMAGE_ROOT, image_name)
         
         image = cv2.imread(image_path) 
+        if image is None: raise FileNotFoundError(f"Image not found: {image_path}")
+        
+        # [OPTIMIZATION] Convert to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        if image is None:
-            raise FileNotFoundError(f"Image not found: {image_path}")
-        
         h_orig, w_orig = image.shape[:2]
-        h_target, w_target = self.parser.resize_shape # Used parsed shape
+        h_target, w_target = self.parser.resize_shape 
         
-        # [OPTIMIZATION] Immediate Resize
+        # Resize Image (CPU)
         if (h_orig, w_orig) != (h_target, w_target):
             image = cv2.resize(image, (w_target, h_target), interpolation=cv2.INTER_LINEAR)
         
-        # [OPTIMIZATION] Efficient Mask Gen
-        label_name = self.labelnames[idx]
+        label_name = self.labelnames[real_idx]
         label_path = os.path.join(Config.LABEL_ROOT, label_name)
         
+        # [OPTIMIZATION] Direct Mask Generation at Target Size (512px)
         label_shape = (h_target, w_target, len(Config.CLASSES))
         label = np.zeros(label_shape, dtype=np.uint8)
         
@@ -206,26 +155,30 @@ class XRayExternalSource:
             points[:, 1] *= scale_y
             points = points.astype(np.int32)
             
+            # Use contiguous buffer for safety
             class_label = np.zeros((h_target, w_target), dtype=np.uint8)
             cv2.fillPoly(class_label, [points], 1)
             label[..., class_ind] = class_label
             
-        # [CPU Transform] Extracted from A.Compose (e.g. CLAHE, Crop)
+        # Apply CPU Transforms (CLAHE)
         if self.parser.cpu_compose:
-            # Pass BOTH image and mask so spatial transforms (Crop) work on both
             inputs = {"image": image, "mask": label}
             result = self.parser.cpu_compose(**inputs)
             image = result["image"]
             label = result["mask"]
         
-        # [Help] Get Matrix for GPU Geometric Augmentation
         matrix = self.parser.get_affine_matrix(h_target, w_target)
 
         return image, label, matrix
+    
+    # [v4] Explicit Shuffle Method
+    def shuffle(self):
+        if self.is_train:
+            random.shuffle(self.indices)
 
-    def __len__(self):
-        return self.n
-
+# ============================================================
+# DALI Pipeline (GPU Acceleration)
+# ============================================================
 class XRayDaliPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, external_source, py_num_workers=1):
         super(XRayDaliPipeline, self).__init__(
@@ -237,7 +190,7 @@ class XRayDaliPipeline(Pipeline):
             py_num_workers=py_num_workers
         )
         self.source = external_source
-        self.parser = external_source.parser # Share parsed config
+        self.parser = external_source.parser 
         
     def define_graph(self):
         self.images, self.masks, self.matrices = fn.external_source(
@@ -249,55 +202,46 @@ class XRayDaliPipeline(Pipeline):
             prefetch_queue_depth=8 
         )
         
-        # Move to GPU
         images = self.images.gpu()
         masks = self.masks.gpu()
         matrices = self.matrices 
         
-        # 1. Geometric Augmentation (Warp Affine)
-        # Matrix comes from CPU (controlled by parsed params)
+        # GPU Affine Transform
         images = fn.warp_affine(images, matrix=matrices, interp_type=types.INTERP_LINEAR, fill_value=0)
         masks = fn.warp_affine(masks, matrix=matrices, interp_type=types.INTERP_NN, fill_value=0)
         
-        # 3. Horizontal Flip
-        mirror = None
-        if self.parser.use_hflip:
-            mirror = fn.random.coin_flip(probability=self.parser.hflip_prob)
-        
-        # 4. Normalize (and Flip)
+        # Normalization
         images = fn.crop_mirror_normalize(
             images,
             dtype=types.FLOAT,
             output_layout="CHW",
-            mirror=mirror, 
-            mean=self.parser.mean, # Parsed mean
-            std=self.parser.std    # Parsed std
+            mean=self.parser.mean, 
+            std=self.parser.std    
         )
         
-        # Masks: (H, W, C) -> (C, H, W)
-        if mirror is not None:
-            masks = fn.flip(masks, horizontal=mirror)
-            
         masks = fn.transpose(masks, perm=[2, 0, 1])
         masks = fn.cast(masks, dtype=types.FLOAT)
         
         return images, masks
 
+# ============================================================
+# Loader Wrapper
+# ============================================================
 class DaliDataLoaderWrapper:
-    def __init__(self, pipeline, size, batch_size):
+    def __init__(self, pipeline, source, batch_size):
         self.pipeline = pipeline
-        self.size = size
+        self.source = source
         self.batch_size = batch_size
         self.iterator = DALIGenericIterator(
             pipelines=[pipeline], 
             output_map=["image", "mask"], 
-            size=size,
+            size=len(source),
             auto_reset=True,
             last_batch_policy=LastBatchPolicy.PARTIAL
         )
         
     def __len__(self):
-        return (self.size + self.batch_size - 1) // self.batch_size
+        return (len(self.source) + self.batch_size - 1) // self.batch_size
     
     def __iter__(self):
         return self
@@ -308,7 +252,8 @@ class DaliDataLoaderWrapper:
             batch = data[0]
             return batch["image"], batch["mask"]
         except StopIteration:
-            self.iterator.reset()
+            # [v4] Trigger Shuffle at End of Epoch
+            self.source.shuffle()
             raise StopIteration
 
 def get_dali_loader(is_train=True, batch_size=None):
@@ -316,18 +261,21 @@ def get_dali_loader(is_train=True, batch_size=None):
         batch_size = Config.BATCH_SIZE
         
     e_source = XRayExternalSource(is_train=is_train)
+    
     num_workers = getattr(Config, 'NUM_WORKERS', 8)
+    dali_threads = getattr(Config, 'DALI_NUM_THREADS', 4) 
+    device_id = getattr(Config, 'DEVICE_ID', 0)
     
     pipe = XRayDaliPipeline(
         batch_size=batch_size, 
-        num_threads=4, 
-        device_id=0, 
+        num_threads=dali_threads, 
+        device_id=device_id, 
         external_source=e_source,
         py_num_workers=num_workers
     )
     pipe.build()
     
-    return DaliDataLoaderWrapper(pipe, size=len(e_source), batch_size=batch_size)
+    return DaliDataLoaderWrapper(pipe, source=e_source, batch_size=batch_size)
 
 class XRayInferenceDataset(Dataset):
     def __init__(self, transforms=None):
