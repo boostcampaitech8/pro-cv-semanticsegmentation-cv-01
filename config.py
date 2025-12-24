@@ -1,19 +1,19 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_005_unetefficientnetb2"
+    EXPERIMENT_NAME = "segformer_b4"
     
-    USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
+    USE_WANDB = False             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
     WANDB_PROJECT = "HandBoneSeg" # 프로젝트 이름
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
     DATASET_FILE = 'dataset.dataset'
-    MODEL_FILE = 'model.model_unet'
+    MODEL_FILE = 'model.model_segformer'
     
     # [2] 학습 환경
-    DATA_ROOT = "../data" 
+    DATA_ROOT = "/home/jkim0094/au31_scratch2/jkim0094/project5/data" 
     IMAGE_ROOT = os.path.join(DATA_ROOT, "train/DCM")
     LABEL_ROOT = os.path.join(DATA_ROOT, "train/outputs_json")
     TEST_IMAGE_ROOT = os.path.join(DATA_ROOT, "test/DCM")
@@ -22,15 +22,15 @@ class Config:
     if not os.path.exists(SAVED_DIR):
         os.makedirs(SAVED_DIR)
 
-    RESIZE_SIZE = (512, 512)
-    BATCH_SIZE = 8  
-    NUM_WORKERS = 4
-    NUM_EPOCHS = 200
+    RESIZE_SIZE = (1024, 1024)
+    BATCH_SIZE = 4 
+    NUM_WORKERS = 6
+    NUM_EPOCHS = 50
     
     # [2] 학습 제어 설정 (NEW)
     # ========================================================
     USE_EARLY_STOPPING = True   # True: 성능 향상 없으면 조기 종료 / False: 무조건 끝까지 학습
-    EARLY_STOPPING_PATIENCE = 3 # 몇 번 참을지
+    EARLY_STOPPING_PATIENCE = 5 # 몇 번 참을지
     EARLY_STOPPING_MIN_DELTA = 0.005 # 이만큼 올라야 오른걸로 치겠다
     
     SAVE_BEST_MODEL = True      # True: 최고 점수 갱신 시 저장 / False: 저장 안 함 (마지막 모델만 남음)
@@ -39,13 +39,13 @@ class Config:
     VAL_EVERY = 2               # 몇 Epoch마다 검증할지
     WANDB_VIS_EVERY = 5
     
-    LR = 1e-4
+    LR = 8e-5  
     RANDOM_SEED = 21
     OPTIMIZER = 'AdamW'
 
     # [NEW] Scheduler 설정
     # 옵션: 'ReduceLROnPlateau', 'StepLR', 'CosineAnnealingLR', 'None'
-    SCHEDULER = 'None' 
+    SCHEDULER = 'CosineAnnealingLR' 
     
     # 1. ReduceLROnPlateau 설정 (성능 향상 멈추면 줄이기 - 추천)
     SCHEDULER_PATIENCE = 2      # 성능 향상 없는 Epoch 수
@@ -65,7 +65,7 @@ class Config:
     # 3. 'Combined_BCE_Dice' : 학습 안정성 + 성능 밸런스형 (추천)
     # 4. 'Combined_Focal_Dice': 캐글 등 상위 랭커들이 가장 많이 쓰는 조합 (강력 추천)
     # util.py 참고
-    LOSS_FUNCTION = 'Dice'
+    LOSS_FUNCTION = 'Combined_BCE_Dice'
 
     # [비율 설정] (앞쪽 Loss, 뒤쪽 Loss)
     # 예: (0.5, 0.5) -> 반반 (기본값)
@@ -100,3 +100,20 @@ class Config:
     ]
     CLASS2IND = {v: i for i, v in enumerate(CLASSES)}
     IND2CLASS = {v: k for k, v in CLASS2IND.items()}
+
+    # ========================================================
+    # [NEW] TTA 설정
+    # ========================================================
+    USE_TTA = False              # True: TTA 사용 / False: 일반 inference
+    
+    # TTA 전략 선택
+    # 'scale_only'    : Multi-Scale만 (가장 안전, 3x 시간)
+    # 'small_angle'   : 작은 각도만 (Training 일관, 3x 시간)  
+    # 'balanced'      : Scale + Angle (최고 성능, 9x 시간)
+    TTA_TYPE = 'balanced'
+    
+    # Multi-Scale 설정 (Training SSR scale_limit=0.05 반영)
+    TTA_SCALES = [0.9375, 1.0, 1.0625] # segformer는 32 배수만 가능 eg., 0.9375 × 1024 = 960 <- 32의 배수
+    
+    # Small Angle 설정 (Training SSR rotate_limit=20 반영)
+    TTA_ANGLES = [-15, 0, 15]
