@@ -3,8 +3,24 @@ import os
 import importlib
 
 # 각 모듈에서 실행 함수 가져오기
-from train import train
+# [Modified] Dynamic Import based on Dataset Type
 from config import Config
+
+def get_trainer():
+    try:
+        dataset_module = importlib.import_module(Config.DATASET_FILE)
+        if hasattr(dataset_module, 'get_dali_loader'):
+            print(f">> DALI Dataset detected ({Config.DATASET_FILE}). Using train_dali.py")
+            from train_dali import train
+            return train
+        else:
+            print(f">> Standard Dataset detected ({Config.DATASET_FILE}). Using train.py")
+            from train import train
+            return train
+    except Exception as e:
+        print(f"Warning: Could not check dataset type ({e}). Defaulting to train.py")
+        from train import train
+        return train
 
 def main():
     print(f"=======================================================")
@@ -14,7 +30,8 @@ def main():
     # 1. 학습 시작
     print("\n>>> [Stage 1] Start Training...")
     try:
-        train() # train.py의 train() 함수 실행
+        train_func = get_trainer() # [Modified]
+        train_func() 
         print(">>> [Stage 1] Training Completed Successfully.")
     except Exception as e:
         print(f"\n[ERROR] Training failed: {e}")
