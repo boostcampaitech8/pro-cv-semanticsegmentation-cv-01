@@ -14,16 +14,20 @@ def get_transforms(is_train=True):
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
+            A.ShiftScaleRotate(
+                shift_limit=0.05, 
+                scale_limit=0.05,
+                rotate_limit=20,     
+                p=0.5,              
+                border_mode=0       
+            ),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            
-            # 여기에 Flip, Rotate 등 Augmentation 추가 가능
         ])
     else:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0), 
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            
         ])
 
 class XRayDataset(Dataset):
