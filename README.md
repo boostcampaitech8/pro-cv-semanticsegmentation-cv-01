@@ -35,11 +35,12 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 │   └── Base_UNet/          # 방향 판별 모델 가중치 등
 ├── dataset/             # 데이터셋 로드 및 전처리 모듈
 │   ├── dataset.py          # 기본 데이터셋 로더
-│   ├── dataset_dali.py     # [New] NVIDIA DALI 파이프라인 전용 로더
+│   ├── dataset_dali_v1.py  # [New] DALI + CPU SSR (안정성)
+│   ├── dataset_dali_v2.py  # [New] DALI + GPU SSR (자동 강도 보정)
 │   ├── dataset_crop.py     # BBox 기반 손 중심 크롭 (Hand-centered)
 │   ├── dataset_flip.py     # 모델 기반 손 방향 정규화 (Flip)
 │   ├── dataset_exclude.py  # Artifact(ID363, ID387) 제외 필터링
-│   └── ... (dataset_clahe, dataset_final, dataset_grid 등 실험용 로더 다수)
+│   └── ... (dataset_clahe, dataset_final 등 실험용 로더 다수)
 ├── eda/                 # 탐색적 데이터 분석 (EDA)
 │   ├── Crop_Hand_Forearm.ipynb # 손 vs 전완부 면적 및 크롭 전략 분석
 │   ├── Hand_Direction_Analysis.ipynb # 손 방향(왼손/오른손) 판별 분석
@@ -57,9 +58,9 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 │   └── inference_flip.py   # 2단계 추론 (방향 판별 -> 정규화 -> 세그멘테이션)
 ├── config.py            # [Control Center] 모든 실험 설정 및 하이퍼파라미터
 ├── train_dali.py        # [New] NVIDIA DALI 기반 초고속 학습 엔진
-├── run_exp_dali.py      # [New] DALI 학습-추론 통합 실행 스크립트
+├── run_exp.py           # [Unified] 통합 실행 스크립트 (DALI/PyTorch 자동 감지)
 ├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
-└── train.py / run_exp.py # 기존 PyTorch DataLoader 기반 실행 파일
+└── train.py             # 기존 PyTorch Learner
 ```
 
 ---
