@@ -13,12 +13,22 @@ def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
+            A.HorizontalFlip(p=0.5),
+            A.ShiftScaleRotate(
+                shift_limit=0.05, # 상하좌우 이동 5%
+                scale_limit=0.05,
+                rotate_limit=20,     # 회전 각도 ±20도 (너무 많이 돌리면 손가락 잘림 주의)
+                p=0.5,               # 2장에 1장꼴로 적용
+                border_mode=0        # 회전해서 생기는 빈 공간은 검은색(0)으로 채움
+            ),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             # 여기에 Flip, Rotate 등 Augmentation 추가 가능
         ])
     else:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0), 
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ])
 
