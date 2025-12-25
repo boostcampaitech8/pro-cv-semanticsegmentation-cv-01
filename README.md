@@ -60,7 +60,10 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 ├── train_dali.py        # [New] NVIDIA DALI 기반 초고속 학습 엔진
 ├── run_exp.py           # [Unified] 통합 실행 스크립트 (DALI/PyTorch 자동 감지)
 ├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
-└── train.py             # 기존 PyTorch Learner
+├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
+├── train.py             # 기존 PyTorch Learner
+└── tools/               # 유틸리티 스크립트
+    └── preprocess_to_jpeg.py # [Fast] PNG -> JPEG 변환 (DALI v1/v2 필수)
 ```
 
 ---
