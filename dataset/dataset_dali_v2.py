@@ -17,16 +17,17 @@ from config import Config
 
 # ============================================================
 # [SINGLE SOURCE OF TRUTH]
-# Define ALL transforms here.
 # ============================================================
 def get_transforms(is_train=True):
     # Matches dataset_final.py exactly
     if is_train:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            
+            # CLAHE (CPU)
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
             
-            # SSR (Will be Parsed for GPU & Scaled down)
+            # SSR (Full Intensity, handled by GPU Parser)
             A.ShiftScaleRotate(
                 shift_limit=0.05, 
                 scale_limit=0.05,
@@ -45,7 +46,7 @@ def get_transforms(is_train=True):
         ])
 
 # ============================================================
-# [LOGIC] Parse get_transforms using GPU for SSR with Scaling
+# [LOGIC] Parse get_transforms
 # ============================================================
 class DaliTransformParser:
     def __init__(self, is_train=True):
@@ -55,55 +56,40 @@ class DaliTransformParser:
         # Defaults
         self.resize_shape = Config.RESIZE_SIZE 
         self.mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
-        self.std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
+        self.std = [0.229 * 255, 0.224 * 255, 0.225 * 255] # DALI expects unnormalized [0,255] mean/std
         self.cpu_transforms = []
         
-        # Init Geometry flags
         self.use_geometric = False
         self.geo_prob = 0.0
         self.rotate_limit = 0; self.scale_limit = 0; self.shift_limit = 0
         self.use_hflip = False; self.hflip_prob = 0.0
 
-        # [CORRECTION FACTOR]
-        # Scale down intensity based on Resolution Reduction
-        # Assuming original is 2048
-        original_dim = 2048.0
-        target_dim = float(Config.RESIZE_SIZE[0])
-        self.correction_factor = target_dim / original_dim # e.g. 512/2048 = 0.25
-        
-        # Parse List
         if transforms:
             t_list = transforms.transforms if isinstance(transforms, A.Compose) else transforms
             for t in t_list:
                 if isinstance(t, A.Resize):
                     self.resize_shape = (t.height, t.width)
-                    # Recalculate factor in case resize changed
-                    target_dim = float(t.height)
-                    self.correction_factor = target_dim / original_dim
+                    # We handle Resize on GPU, so strict match isn't required in list, 
+                    # but we won't put it in cpu_transforms.
                     
                 elif isinstance(t, A.Normalize):
                     self.mean = [m * 255 for m in t.mean]
                     self.std = [s * 255 for s in t.std]
                     
                 elif isinstance(t, A.ShiftScaleRotate):
-                    # Enable Geometric Transform for DALI (GPU)
                     self.use_geometric = True
                     self.geo_prob = t.p
                     
-                    # [APPLY CORRECTION] Apply correction factor to limits
-                    # This weakens the augmentation significantly for smaller images
-                    # e.g. 20 deg -> 5 deg
+                    # Unscaled (V4)
                     r_lim = max(abs(t.rotate_limit[0]), abs(t.rotate_limit[1]))
                     s_lim = max(abs(t.scale_limit[0]), abs(t.scale_limit[1]))
                     sx = max(abs(t.shift_limit_x[0]), abs(t.shift_limit_x[1]))
                     sy = max(abs(t.shift_limit_y[0]), abs(t.shift_limit_y[1]))
                     sh_lim = max(sx, sy)
                     
-                    self.rotate_limit = r_lim * self.correction_factor
-                    self.scale_limit = s_lim * self.correction_factor
-                    self.shift_limit = sh_lim * self.correction_factor
-                    
-                    print(f">> [DALI v3] SSR Scaled by {self.correction_factor:.2f}: Rot={self.rotate_limit:.2f}, Shift={self.shift_limit:.4f}")
+                    self.rotate_limit = r_lim
+                    self.scale_limit = s_lim
+                    self.shift_limit = sh_lim 
                     
                 elif isinstance(t, A.HorizontalFlip):
                     self.use_hflip = True
@@ -111,15 +97,14 @@ class DaliTransformParser:
                 elif isinstance(t, (A.Compose, A.OneOf)):
                     pass 
                 else:
-                    # CLAHE and others go here
+                    # e.g. CLAHE
                     self.cpu_transforms.append(t)
         
         self.cpu_compose = A.Compose(self.cpu_transforms) if self.cpu_transforms else None
-
+        
     def get_affine_matrix(self, h, w):
         matrix = np.eye(3, dtype=np.float32)[:2, :] 
         
-        # Logic uses the SCALED limits
         if self.is_train and self.use_geometric and random.random() < self.geo_prob:
             angle = random.uniform(-self.rotate_limit, self.rotate_limit)
             scale = random.uniform(1 - self.scale_limit, 1 + self.scale_limit)
@@ -141,6 +126,11 @@ class XRayExternalSource:
     def __init__(self, is_train=True):
         self.is_train = is_train
         self.parser = DaliTransformParser(is_train)
+        
+        # Determine JPEG Root
+        self.jpeg_root = Config.IMAGE_ROOT.rstrip('/') + "_jpeg"
+        if not os.path.exists(self.jpeg_root):
+             raise FileNotFoundError(f"JPEG Root not found: {self.jpeg_root}. Run tools/preprocess_to_jpeg.py first.")
             
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
@@ -189,21 +179,32 @@ class XRayExternalSource:
         real_idx = self.indices[idx_in_epoch]
             
         image_name = self.filenames[real_idx]
-        image_path = os.path.join(Config.IMAGE_ROOT, image_name)
         
-        image = cv2.imread(image_path) 
-        if image is None: raise FileNotFoundError(f"Image not found: {image_path}")
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # JPEG Path
+        jpeg_name = os.path.splitext(image_name)[0] + ".jpg"
+        image_path = os.path.join(self.jpeg_root, jpeg_name)
         
-        h_orig, w_orig = image.shape[:2]
+        # 1. Start with JPEG Reading (Fast)
+        # Note: We MUST decode on CPU to apply CLAHE via Albumentations
+        image = cv2.imread(image_path)
+        if image is None: raise FileNotFoundError(f"JPEG not found: {image_path}")
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # RGB for Albumentations
+        
+        
+        # 3. DALI Target Sizes
         h_target, w_target = self.parser.resize_shape 
+        h_orig, w_orig = 2048, 2048
         
         if (h_orig, w_orig) != (h_target, w_target):
-            image = cv2.resize(image, (w_target, h_target), interpolation=cv2.INTER_LINEAR)
+             image = cv2.resize(image, (w_target, h_target), interpolation=cv2.INTER_LINEAR)
         
+        # [OPTIMIZATION] Apply CLAHE after resizing (16x faster)
+        if self.parser.cpu_compose:
+            image = self.parser.cpu_compose(image=image)["image"]
+        
+        # 4. Prepare Mask (Target Size)
         label_name = self.labelnames[real_idx]
         label_path = os.path.join(Config.LABEL_ROOT, label_name)
-        
         label_shape = (h_target, w_target, len(Config.CLASSES))
         label = np.zeros(label_shape, dtype=np.uint8)
         
@@ -225,15 +226,10 @@ class XRayExternalSource:
             cv2.fillPoly(class_label, [points], 1)
             label[..., class_ind] = class_label
             
-        # Apply CPU Transforms (CLAHE)
-        if self.parser.cpu_compose:
-            inputs = {"image": image, "mask": label}
-            result = self.parser.cpu_compose(**inputs)
-            image = result["image"]
-            label = result["mask"]
-        
+        # 5. Calc Matrix
         matrix = self.parser.get_affine_matrix(h_target, w_target)
 
+        # Return: Image Array (Uint8 RGB), Mask, Matrix
         return image, label, matrix
     
     def shuffle(self):
@@ -241,7 +237,7 @@ class XRayExternalSource:
             random.shuffle(self.indices)
 
 # ============================================================
-# DALI Pipeline (GPU Acceleration)
+# DALI Pipeline 
 # ============================================================
 class XRayDaliPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, external_source, py_num_workers=1):
@@ -257,6 +253,7 @@ class XRayDaliPipeline(Pipeline):
         self.parser = external_source.parser 
         
     def define_graph(self):
+        # inputs: 0=Image(RGB, HWC), 1=Mask, 2=Matrix
         self.images, self.masks, self.matrices = fn.external_source(
             source=self.source, 
             num_outputs=3, 
@@ -266,13 +263,18 @@ class XRayDaliPipeline(Pipeline):
             prefetch_queue_depth=8 
         )
         
-        images = self.images.gpu()
-        masks = self.masks.gpu()
+        # Transfer to GPU
+        images = self.images.gpu() 
+        masks = self.masks.gpu() 
         matrices = self.matrices 
         
-        # GPU Affine (ShiftScaleRotate via matrix)
+        # Resize on GPU (2048 -> Target)
+        # Note: images are HWC
+        # Resize moved to CPU to reduce PCIE bandwidth (v4 fix)
+        # images = fn.resize(images, ...)
+        
+        # GPU Affine 
         if self.parser.use_geometric:
-             # Use the matrices generated by Parser (which includes the scaling correction)
              images = fn.warp_affine(images, matrix=matrices, interp_type=types.INTERP_LINEAR, fill_value=0)
              masks = fn.warp_affine(masks, matrix=matrices, interp_type=types.INTERP_NN, fill_value=0)
         
