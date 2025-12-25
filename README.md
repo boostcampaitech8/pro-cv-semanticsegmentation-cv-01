@@ -35,12 +35,13 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 │   └── Base_UNet/          # 방향 판별 모델 가중치 등
 ├── dataset/             # 데이터셋 로드 및 전처리 모듈
 │   ├── dataset.py          # 기본 데이터셋 로더
-│   ├── dataset_dali_v1.py  # [New] DALI + CPU SSR (안정성)
-│   ├── dataset_dali_v2.py  # [New] DALI + GPU SSR (자동 강도 보정)
+│   ├── dataset_dali_v1.py  # [New] DALI + Weak SSR (Scaled)
+│   ├── dataset_dali_v2.py  # [New] DALI + SSR (Unscaled)
 │   ├── dataset_crop.py     # BBox 기반 손 중심 크롭 (Hand-centered)
 │   ├── dataset_flip.py     # 모델 기반 손 방향 정규화 (Flip)
 │   ├── dataset_exclude.py  # Artifact(ID363, ID387) 제외 필터링
 │   └── ... (dataset_clahe, dataset_final 등 실험용 로더 다수)
+
 ├── eda/                 # 탐색적 데이터 분석 (EDA)
 │   ├── Crop_Hand_Forearm.ipynb # 손 vs 전완부 면적 및 크롭 전략 분석
 │   ├── Hand_Direction_Analysis.ipynb # 손 방향(왼손/오른손) 판별 분석
@@ -60,8 +61,8 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 ├── train_dali.py        # [New] NVIDIA DALI 기반 초고속 학습 엔진
 ├── run_exp.py           # [Unified] 통합 실행 스크립트 (DALI/PyTorch 자동 감지)
 ├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
-├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
 ├── train.py             # 기존 PyTorch Learner
+├── utils.py             # [Common] 시드 고정, RLE 인코딩, Custom Loss 함수 모음
 └── tools/               # 유틸리티 스크립트
     └── preprocess_to_jpeg.py # [Fast] PNG -> JPEG 변환 (DALI v1/v2 필수)
 ```
@@ -73,8 +74,8 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 ### ⚡ 1. NVIDIA DALI 데이터 가속 (`train_dali.py`)
 - **병목 해결**: 2048x2048 고해상도 이미지의 디코딩 및 증강을 GPU에서 처리하여 학습 속도를 획기적으로 개선했습니다.
 - **버전별 특징**:
-    - **v1 (`dataset_dali_v1`)**: **Scaled SSR** (약한 증강). 이미지 해상도에 비례하여 회전/이동 강도를 조절합니다.
-    - **v2 (`dataset_dali_v2`)**: **Unscaled SSR** (강한 증강). 원본 해상도 기준의 강한 증강을 적용하여 일반화 성능을 극대화합니다. (**추천**)
+    - **v1 (`dataset_dali_v1`)**: **Scaled SSR** 
+    - **v2 (`dataset_dali_v2`)**: **Unscaled SSR** 
     - 공통: 두 버전 모두 **Hybrid JPEG Pipeline (CPU Resize -> CLAHE)** 을 적용하여 전송 병목 없이 초고속 학습이 가능합니다. (`tools/preprocess_to_jpeg.py`로 사전 변환 필요)
 
 ### 🍱 2. 데이터 전처리 전략 (Preprocessing)
