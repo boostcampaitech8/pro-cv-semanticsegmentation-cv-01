@@ -1,0 +1,16 @@
+# 파이썬 컴파일 찌꺼기
+__pycache__
+*.pyc
+
+# 로그 및 실험 결과물
+*.log
+*.csv
+wandb/
+
+# 대용량 모델 파일 및 데이터
+checkpoints/
+*.pt
+*.h5
+
+# OS 관련 (가끔 생김)
+.DS_Store
