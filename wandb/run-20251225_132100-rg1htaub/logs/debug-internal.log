@@ -1,0 +1,20 @@
+{"time":"2025-12-25T13:21:01.015165611Z","level":"INFO","msg":"stream: starting","core version":"0.23.1"}
+{"time":"2025-12-25T13:21:01.530912715Z","level":"INFO","msg":"stream: created new stream","id":"rg1htaub"}
+{"time":"2025-12-25T13:21:01.531157895Z","level":"INFO","msg":"stream: started","id":"rg1htaub"}
+{"time":"2025-12-25T13:21:01.53253314Z","level":"INFO","msg":"handler: started","stream_id":"rg1htaub"}
+{"time":"2025-12-25T13:21:01.532600368Z","level":"INFO","msg":"writer: started","stream_id":"rg1htaub"}
+{"time":"2025-12-25T13:21:01.532606732Z","level":"INFO","msg":"sender: started","stream_id":"rg1htaub"}
+{"time":"2025-12-25T15:16:52.0259416Z","level":"INFO","msg":"flowcontrol: backed up, offloading to disk","recordNumber":25499}
+{"time":"2025-12-25T15:16:52.026680072Z","level":"INFO","msg":"flowcontrol: unblocked","totalOffloaded":21}
+{"time":"2025-12-25T16:30:05.738646939Z","level":"INFO","msg":"flowcontrol: backed up, offloading to disk","recordNumber":42502}
+{"time":"2025-12-25T16:30:05.740455448Z","level":"INFO","msg":"flowcontrol: unblocked","totalOffloaded":8}
+{"time":"2025-12-25T18:21:51.114575373Z","level":"INFO","msg":"flowcontrol: backed up, offloading to disk","recordNumber":67958}
+{"time":"2025-12-25T18:21:51.115352153Z","level":"INFO","msg":"flowcontrol: unblocked","totalOffloaded":34}
+{"time":"2025-12-25T18:57:57.256804261Z","level":"INFO","msg":"flowcontrol: backed up, offloading to disk","recordNumber":76442}
+{"time":"2025-12-25T18:57:57.257426808Z","level":"INFO","msg":"flowcontrol: unblocked","totalOffloaded":23}
+{"time":"2025-12-25T19:34:02.341652137Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-12-25T19:34:03.195388939Z","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2025-12-25T19:34:03.200654507Z","level":"INFO","msg":"stream: closing","id":"rg1htaub"}
+{"time":"2025-12-25T19:34:03.200670276Z","level":"INFO","msg":"handler: closed","stream_id":"rg1htaub"}
+{"time":"2025-12-25T19:34:03.200762523Z","level":"INFO","msg":"sender: closed","stream_id":"rg1htaub"}
+{"time":"2025-12-25T19:34:03.200783836Z","level":"INFO","msg":"stream: closed","id":"rg1htaub"}

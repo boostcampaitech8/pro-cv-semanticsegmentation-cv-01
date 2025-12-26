@@ -1,0 +1,523 @@
+>> WandB Initialized: HandBoneSeg / LBH_008_Base_UNet_1024_sliding_window_50e_DALI
+>> Initializing DALI DataLoaders from dataset.dataset_dali_sliding...
+[Sliding Window] Images: 640, Patches per image: 4, Total patches: 2560
+[Sliding Window] Images: 160, Patches per image: 4, Total patches: 640
+/data/ephemeral/home/.venv/lib/python3.10/site-packages/nvidia/dali/pipeline.py:1076: Warning: The external source node '<dataset.dataset_dali_sliding.XRayExternalSource object at 0x7ff70493bfd0>' produces 3 outputs, but the output at the index 2 is not used. For best performance, adjust your callback so that it computes only the needed outputs.
+  warnings.warn(
+>> DALI DataLoaders Ready.
+>>> [Model] Initializing SMP Unet with EfficientNet-B2...
+>> Selected Scheduler: None
+>> Selected Loss Function: Dice
+
+🚀 Start Training | Opt: AdamW | Scheduler: None
+[Train] Epoch 1: 100%|██████████| 320/320 [08:03<00:00,  1.51s/it, loss=0.9434]
+
+Epoch 1 | Train Loss: 0.9764
+[Train] Epoch 2: 100%|██████████| 320/320 [08:32<00:00,  1.60s/it, loss=0.7130]
+Epoch 2 | Train Loss: 0.8499
+[Train] Epoch 3: 100%|██████████| 320/320 [07:25<00:00,  1.39s/it, loss=0.6116]
+Epoch 3 | Train Loss: 0.6520
+[Train] Epoch 4: 100%|██████████| 320/320 [07:12<00:00,  1.35s/it, loss=0.4197]
+Epoch 4 | Train Loss: 0.5102
+[Train] Epoch 5: 100%|██████████| 320/320 [07:05<00:00,  1.33s/it, loss=0.3466]
+Epoch 5 | Train Loss: 0.4051
+[Valid] Epoch 5: 100%|██████████| 80/80 [01:45<00:00,  1.32s/it]
+
+========================================
+ Epoch 5 Validation Summary
+----------------------------------------
+ Val Loss: 0.3338
+ Mean Dice: 0.6779
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.1813
+ finger-2       : 0.9557
+ finger-3       : 0.4933
+ finger-4       : 0.9533
+ finger-5       : 0.9913
+ finger-6       : 0.3469
+ finger-7       : 0.7221
+ finger-8       : 0.1067
+ finger-9       : 0.1046
+ finger-10      : 0.4236
+ finger-11      : 0.2515
+ finger-12      : 0.6021
+ finger-13      : 0.1158
+ finger-14      : 0.9693
+ finger-15      : 0.1987
+ finger-16      : 0.8825
+ finger-17      : 0.9752
+ finger-18      : 0.9499
+ finger-19      : 0.9367
+ Trapezium      : 0.8991
+ Trapezoid      : 0.9229
+ Capitate       : 0.8836
+ Hamate         : 0.8000
+ Scaphoid       : 0.7548
+ Lunate         : 0.7719
+ Triquetrum     : 0.9509
+ Pisiform       : 0.9439
+ Radius         : 0.6943
+ Ulna           : 0.8775
+========================================
+
+🔥 Best Dice Updated: 0.0000 → 0.6779 (Delta: 0.6779)
+[Train] Epoch 6: 100%|██████████| 320/320 [07:05<00:00,  1.33s/it, loss=0.3999]
+Epoch 6 | Train Loss: 0.3426
+[Train] Epoch 7: 100%|██████████| 320/320 [06:58<00:00,  1.31s/it, loss=0.2049]
+Epoch 7 | Train Loss: 0.2871
+[Train] Epoch 8: 100%|██████████| 320/320 [06:58<00:00,  1.31s/it, loss=0.1559]
+Epoch 8 | Train Loss: 0.2151
+[Train] Epoch 9: 100%|██████████| 320/320 [06:59<00:00,  1.31s/it, loss=0.1275]
+Epoch 9 | Train Loss: 0.1843
+[Train] Epoch 10: 100%|██████████| 320/320 [07:00<00:00,  1.31s/it, loss=0.1121]
+Epoch 10 | Train Loss: 0.1516
+[Valid] Epoch 10: 100%|██████████| 80/80 [01:43<00:00,  1.29s/it]
+
+========================================
+ Epoch 10 Validation Summary
+----------------------------------------
+ Val Loss: 0.1078
+ Mean Dice: 0.8766
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9651
+ finger-2       : 0.9196
+ finger-3       : 0.5446
+ finger-4       : 0.9916
+ finger-5       : 0.9876
+ finger-6       : 0.9200
+ finger-7       : 0.7305
+ finger-8       : 0.9509
+ finger-9       : 0.9283
+ finger-10      : 0.9120
+ finger-11      : 0.6109
+ finger-12      : 0.9875
+ finger-13      : 0.9748
+ finger-14      : 0.9497
+ finger-15      : 0.4468
+ finger-16      : 0.9725
+ finger-17      : 0.9215
+ finger-18      : 0.9646
+ finger-19      : 0.9451
+ Trapezium      : 0.9121
+ Trapezoid      : 0.9255
+ Capitate       : 0.9193
+ Hamate         : 0.8586
+ Scaphoid       : 0.7501
+ Lunate         : 0.8924
+ Triquetrum     : 0.9520
+ Pisiform       : 0.9523
+ Radius         : 0.6859
+ Ulna           : 0.9508
+========================================
+
+🔥 Best Dice Updated: 0.6779 → 0.8766 (Delta: 0.1987)
+[Train] Epoch 11: 100%|██████████| 320/320 [07:03<00:00,  1.32s/it, loss=0.1063]
+Epoch 11 | Train Loss: 0.1397
+[Train] Epoch 12: 100%|██████████| 320/320 [07:49<00:00,  1.47s/it, loss=0.0957]
+Epoch 12 | Train Loss: 0.1296
+[Train] Epoch 13: 100%|██████████| 320/320 [07:42<00:00,  1.45s/it, loss=0.1010]
+Epoch 13 | Train Loss: 0.1212
+[Train] Epoch 14: 100%|██████████| 320/320 [06:56<00:00,  1.30s/it, loss=0.1015]
+Epoch 14 | Train Loss: 0.1219
+[Train] Epoch 15: 100%|██████████| 320/320 [06:55<00:00,  1.30s/it, loss=0.1018]
+Epoch 15 | Train Loss: 0.1164
+[Valid] Epoch 15: 100%|██████████| 80/80 [01:41<00:00,  1.27s/it]
+
+========================================
+ Epoch 15 Validation Summary
+----------------------------------------
+ Val Loss: 0.0891
+ Mean Dice: 0.8906
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9343
+ finger-2       : 0.9495
+ finger-3       : 0.6127
+ finger-4       : 0.9922
+ finger-5       : 0.9783
+ finger-6       : 0.9372
+ finger-7       : 0.8809
+ finger-8       : 0.9701
+ finger-9       : 0.9151
+ finger-10      : 0.9397
+ finger-11      : 0.6464
+ finger-12      : 0.9867
+ finger-13      : 0.9555
+ finger-14      : 0.8633
+ finger-15      : 0.6464
+ finger-16      : 0.9701
+ finger-17      : 0.9445
+ finger-18      : 0.9688
+ finger-19      : 0.9511
+ Trapezium      : 0.9090
+ Trapezoid      : 0.8990
+ Capitate       : 0.9210
+ Hamate         : 0.8194
+ Scaphoid       : 0.7617
+ Lunate         : 0.9243
+ Triquetrum     : 0.9579
+ Pisiform       : 0.9597
+ Radius         : 0.6946
+ Ulna           : 0.9374
+========================================
+
+🔥 Best Dice Updated: 0.8766 → 0.8906 (Delta: 0.0139)
+[Train] Epoch 16: 100%|██████████| 320/320 [06:57<00:00,  1.31s/it, loss=0.1060]
+Epoch 16 | Train Loss: 0.1151
+[Train] Epoch 17: 100%|██████████| 320/320 [06:56<00:00,  1.30s/it, loss=0.0821]
+Epoch 17 | Train Loss: 0.1081
+[Train] Epoch 18: 100%|██████████| 320/320 [06:55<00:00,  1.30s/it, loss=0.0747]
+Epoch 18 | Train Loss: 0.1004
+[Train] Epoch 19: 100%|██████████| 320/320 [06:55<00:00,  1.30s/it, loss=0.0814]
+Epoch 19 | Train Loss: 0.1007
+[Train] Epoch 20: 100%|██████████| 320/320 [06:56<00:00,  1.30s/it, loss=0.0873]
+Epoch 20 | Train Loss: 0.0981
+[Valid] Epoch 20: 100%|██████████| 80/80 [01:42<00:00,  1.28s/it]
+
+========================================
+ Epoch 20 Validation Summary
+----------------------------------------
+ Val Loss: 0.0722
+ Mean Dice: 0.9270
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9675
+ finger-2       : 0.9641
+ finger-3       : 0.6606
+ finger-4       : 0.9907
+ finger-5       : 0.9924
+ finger-6       : 0.9846
+ finger-7       : 0.9408
+ finger-8       : 0.9788
+ finger-9       : 0.9692
+ finger-10      : 0.9605
+ finger-11      : 0.6747
+ finger-12      : 0.9897
+ finger-13      : 0.9637
+ finger-14      : 0.9827
+ finger-15      : 0.7280
+ finger-16      : 0.9828
+ finger-17      : 0.9758
+ finger-18      : 0.9784
+ finger-19      : 0.9571
+ Trapezium      : 0.9379
+ Trapezoid      : 0.9587
+ Capitate       : 0.9271
+ Hamate         : 0.9476
+ Scaphoid       : 0.9426
+ Lunate         : 0.9215
+ Triquetrum     : 0.9647
+ Pisiform       : 0.9634
+ Radius         : 0.7002
+ Ulna           : 0.9767
+========================================
+
+🔥 Best Dice Updated: 0.8906 → 0.9270 (Delta: 0.0364)
+[Train] Epoch 21: 100%|██████████| 320/320 [06:55<00:00,  1.30s/it, loss=0.0712]
+Epoch 21 | Train Loss: 0.0966
+[Train] Epoch 22: 100%|██████████| 320/320 [06:54<00:00,  1.30s/it, loss=0.0686]
+Epoch 22 | Train Loss: 0.0923
+[Train] Epoch 23: 100%|██████████| 320/320 [07:08<00:00,  1.34s/it, loss=0.0616]
+Epoch 23 | Train Loss: 0.0783
+[Train] Epoch 24: 100%|██████████| 320/320 [06:58<00:00,  1.31s/it, loss=0.1296]
+Epoch 24 | Train Loss: 0.0800
+[Train] Epoch 25: 100%|██████████| 320/320 [07:02<00:00,  1.32s/it, loss=0.0478]
+Epoch 25 | Train Loss: 0.0749
+[Valid] Epoch 25: 100%|██████████| 80/80 [01:41<00:00,  1.27s/it]
+
+========================================
+ Epoch 25 Validation Summary
+----------------------------------------
+ Val Loss: 0.0536
+ Mean Dice: 0.9407
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9328
+ finger-2       : 0.9676
+ finger-3       : 0.8910
+ finger-4       : 0.9924
+ finger-5       : 0.9830
+ finger-6       : 0.9652
+ finger-7       : 0.9534
+ finger-8       : 0.9804
+ finger-9       : 0.9668
+ finger-10      : 0.9537
+ finger-11      : 0.7387
+ finger-12      : 0.9882
+ finger-13      : 0.9058
+ finger-14      : 0.9786
+ finger-15      : 0.8743
+ finger-16      : 0.9746
+ finger-17      : 0.9889
+ finger-18      : 0.9745
+ finger-19      : 0.9230
+ Trapezium      : 0.9393
+ Trapezoid      : 0.9585
+ Capitate       : 0.9265
+ Hamate         : 0.9189
+ Scaphoid       : 0.9531
+ Lunate         : 0.9294
+ Triquetrum     : 0.9731
+ Pisiform       : 0.9568
+ Radius         : 0.8077
+ Ulna           : 0.9828
+========================================
+
+🔥 Best Dice Updated: 0.9270 → 0.9407 (Delta: 0.0137)
+[Train] Epoch 26: 100%|██████████| 320/320 [06:56<00:00,  1.30s/it, loss=0.0390]
+Epoch 26 | Train Loss: 0.0637
+[Train] Epoch 27: 100%|██████████| 320/320 [06:55<00:00,  1.30s/it, loss=0.0391]
+Epoch 27 | Train Loss: 0.0527
+[Train] Epoch 28: 100%|██████████| 320/320 [07:04<00:00,  1.33s/it, loss=0.0326]
+Epoch 28 | Train Loss: 0.0537
+[Train] Epoch 29: 100%|██████████| 320/320 [07:50<00:00,  1.47s/it, loss=0.0328]
+Epoch 29 | Train Loss: 0.0496
+[Train] Epoch 30: 100%|██████████| 320/320 [07:03<00:00,  1.32s/it, loss=0.0543]
+Epoch 30 | Train Loss: 0.0484
+[Valid] Epoch 30: 100%|██████████| 80/80 [01:43<00:00,  1.29s/it]
+
+========================================
+ Epoch 30 Validation Summary
+----------------------------------------
+ Val Loss: 0.0380
+ Mean Dice: 0.9554
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9661
+ finger-2       : 0.9553
+ finger-3       : 0.9755
+ finger-4       : 0.9784
+ finger-5       : 0.9629
+ finger-6       : 0.8760
+ finger-7       : 0.9510
+ finger-8       : 0.9777
+ finger-9       : 0.9720
+ finger-10      : 0.9551
+ finger-11      : 0.9261
+ finger-12      : 0.9923
+ finger-13      : 0.9864
+ finger-14      : 0.9810
+ finger-15      : 0.9310
+ finger-16      : 0.9814
+ finger-17      : 0.9832
+ finger-18      : 0.9636
+ finger-19      : 0.9480
+ Trapezium      : 0.9658
+ Trapezoid      : 0.9566
+ Capitate       : 0.9437
+ Hamate         : 0.9268
+ Scaphoid       : 0.9529
+ Lunate         : 0.9400
+ Triquetrum     : 0.9761
+ Pisiform       : 0.9651
+ Radius         : 0.8404
+ Ulna           : 0.9762
+========================================
+
+🔥 Best Dice Updated: 0.9407 → 0.9554 (Delta: 0.0148)
+[Train] Epoch 31: 100%|██████████| 320/320 [07:02<00:00,  1.32s/it, loss=0.0484]
+Epoch 31 | Train Loss: 0.0469
+[Train] Epoch 32: 100%|██████████| 320/320 [07:09<00:00,  1.34s/it, loss=0.0415]
+Epoch 32 | Train Loss: 0.0503
+[Train] Epoch 33: 100%|██████████| 320/320 [07:04<00:00,  1.33s/it, loss=0.0368]
+Epoch 33 | Train Loss: 0.0545
+[Train] Epoch 34: 100%|██████████| 320/320 [07:02<00:00,  1.32s/it, loss=0.0320]
+Epoch 34 | Train Loss: 0.0486
+[Train] Epoch 35: 100%|██████████| 320/320 [07:02<00:00,  1.32s/it, loss=0.0321]
+Epoch 35 | Train Loss: 0.0484
+[Valid] Epoch 35: 100%|██████████| 80/80 [01:45<00:00,  1.32s/it]
+
+========================================
+ Epoch 35 Validation Summary
+----------------------------------------
+ Val Loss: 0.0355
+ Mean Dice: 0.9680
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9766
+ finger-2       : 0.9688
+ finger-3       : 0.9809
+ finger-4       : 0.9924
+ finger-5       : 0.9878
+ finger-6       : 0.9779
+ finger-7       : 0.9446
+ finger-8       : 0.9801
+ finger-9       : 0.9772
+ finger-10      : 0.9687
+ finger-11      : 0.9334
+ finger-12      : 0.9921
+ finger-13      : 0.9927
+ finger-14      : 0.9817
+ finger-15      : 0.9382
+ finger-16      : 0.9855
+ finger-17      : 0.9867
+ finger-18      : 0.9764
+ finger-19      : 0.9658
+ Trapezium      : 0.9694
+ Trapezoid      : 0.9617
+ Capitate       : 0.9355
+ Hamate         : 0.9496
+ Scaphoid       : 0.9593
+ Lunate         : 0.9373
+ Triquetrum     : 0.9791
+ Pisiform       : 0.9677
+ Radius         : 0.9186
+ Ulna           : 0.9856
+========================================
+
+🔥 Best Dice Updated: 0.9554 → 0.9680 (Delta: 0.0126)
+[Train] Epoch 36: 100%|██████████| 320/320 [07:11<00:00,  1.35s/it, loss=0.0360]
+Epoch 36 | Train Loss: 0.0484
+[Train] Epoch 37: 100%|██████████| 320/320 [07:05<00:00,  1.33s/it, loss=0.0304]
+Epoch 37 | Train Loss: 0.0479
+[Train] Epoch 38: 100%|██████████| 320/320 [07:00<00:00,  1.31s/it, loss=0.0366]
+Epoch 38 | Train Loss: 0.0452
+[Train] Epoch 39: 100%|██████████| 320/320 [06:57<00:00,  1.30s/it, loss=0.0359]
+Epoch 39 | Train Loss: 0.0449
+[Train] Epoch 40: 100%|██████████| 320/320 [06:58<00:00,  1.31s/it, loss=0.0440]
+Epoch 40 | Train Loss: 0.0471
+[Valid] Epoch 40: 100%|██████████| 80/80 [01:41<00:00,  1.27s/it]
+
+========================================
+ Epoch 40 Validation Summary
+----------------------------------------
+ Val Loss: 0.0344
+ Mean Dice: 0.9647
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9804
+ finger-2       : 0.9747
+ finger-3       : 0.9836
+ finger-4       : 0.9942
+ finger-5       : 0.9848
+ finger-6       : 0.9527
+ finger-7       : 0.9496
+ finger-8       : 0.9828
+ finger-9       : 0.9670
+ finger-10      : 0.9559
+ finger-11      : 0.9332
+ finger-12      : 0.9910
+ finger-13      : 0.9463
+ finger-14      : 0.9847
+ finger-15      : 0.8800
+ finger-16      : 0.9835
+ finger-17      : 0.9876
+ finger-18      : 0.9867
+ finger-19      : 0.9684
+ Trapezium      : 0.9785
+ Trapezoid      : 0.9634
+ Capitate       : 0.9446
+ Hamate         : 0.9140
+ Scaphoid       : 0.9619
+ Lunate         : 0.9388
+ Triquetrum     : 0.9779
+ Pisiform       : 0.9669
+ Radius         : 0.9591
+ Ulna           : 0.9831
+========================================
+
+No improvement. Patience 1/1
+[Train] Epoch 41: 100%|██████████| 320/320 [06:53<00:00,  1.29s/it, loss=0.0474]
+Epoch 41 | Train Loss: 0.0445
+[Train] Epoch 42: 100%|██████████| 320/320 [06:51<00:00,  1.29s/it, loss=0.1372]
+Epoch 42 | Train Loss: 0.0433
+[Train] Epoch 43: 100%|██████████| 320/320 [06:51<00:00,  1.29s/it, loss=0.0324]
+Epoch 43 | Train Loss: 0.0478
+[Train] Epoch 44: 100%|██████████| 320/320 [06:51<00:00,  1.29s/it, loss=0.0337]
+Epoch 44 | Train Loss: 0.0428
+[Train] Epoch 45: 100%|██████████| 320/320 [06:52<00:00,  1.29s/it, loss=0.0337]
+Epoch 45 | Train Loss: 0.0436
+[Valid] Epoch 45: 100%|██████████| 80/80 [01:40<00:00,  1.26s/it]
+
+========================================
+ Epoch 45 Validation Summary
+----------------------------------------
+ Val Loss: 0.0349
+ Mean Dice: 0.9644
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9815
+ finger-2       : 0.9781
+ finger-3       : 0.9777
+ finger-4       : 0.9907
+ finger-5       : 0.9926
+ finger-6       : 0.9216
+ finger-7       : 0.8853
+ finger-8       : 0.9819
+ finger-9       : 0.9789
+ finger-10      : 0.9703
+ finger-11      : 0.9340
+ finger-12      : 0.9818
+ finger-13      : 0.9938
+ finger-14      : 0.9840
+ finger-15      : 0.9367
+ finger-16      : 0.9829
+ finger-17      : 0.9852
+ finger-18      : 0.9854
+ finger-19      : 0.9740
+ Trapezium      : 0.9676
+ Trapezoid      : 0.9332
+ Capitate       : 0.9517
+ Hamate         : 0.9072
+ Scaphoid       : 0.9644
+ Lunate         : 0.9317
+ Triquetrum     : 0.9796
+ Pisiform       : 0.9691
+ Radius         : 0.9649
+ Ulna           : 0.9814
+========================================
+
+No improvement. Patience 2/1
+[Train] Epoch 46: 100%|██████████| 320/320 [06:50<00:00,  1.28s/it, loss=0.0359]
+Epoch 46 | Train Loss: 0.0437
+[Train] Epoch 47: 100%|██████████| 320/320 [06:50<00:00,  1.28s/it, loss=0.0306]
+Epoch 47 | Train Loss: 0.0426
+[Train] Epoch 48: 100%|██████████| 320/320 [06:51<00:00,  1.28s/it, loss=0.0318]
+Epoch 48 | Train Loss: 0.0435
+[Train] Epoch 49: 100%|██████████| 320/320 [06:52<00:00,  1.29s/it, loss=0.0352]
+Epoch 49 | Train Loss: 0.0457
+[Train] Epoch 50: 100%|██████████| 320/320 [06:53<00:00,  1.29s/it, loss=0.0898]
+Epoch 50 | Train Loss: 0.0425
+[Valid] Epoch 50: 100%|██████████| 80/80 [01:41<00:00,  1.27s/it]
+
+========================================
+ Epoch 50 Validation Summary
+----------------------------------------
+ Val Loss: 0.0326
+ Mean Dice: 0.9695
+ LR      : 0.000100
+----------------------------------------
+ finger-1       : 0.9799
+ finger-2       : 0.9751
+ finger-3       : 0.9880
+ finger-4       : 0.9909
+ finger-5       : 0.9864
+ finger-6       : 0.9769
+ finger-7       : 0.9391
+ finger-8       : 0.9838
+ finger-9       : 0.9772
+ finger-10      : 0.9594
+ finger-11      : 0.9369
+ finger-12      : 0.9930
+ finger-13      : 0.9949
+ finger-14      : 0.9760
+ finger-15      : 0.9385
+ finger-16      : 0.9839
+ finger-17      : 0.9918
+ finger-18      : 0.9831
+ finger-19      : 0.9808
+ Trapezium      : 0.9726
+ Trapezoid      : 0.9642
+ Capitate       : 0.9484
+ Hamate         : 0.9488
+ Scaphoid       : 0.9632
+ Lunate         : 0.9421
+ Triquetrum     : 0.9793
+ Pisiform       : 0.9661
+ Radius         : 0.9219
+ Ulna           : 0.9745
+========================================
+
+No improvement. Patience 3/1

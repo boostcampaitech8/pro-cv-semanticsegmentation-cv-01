@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_011_unetb2_clahe_crop"
+    EXPERIMENT_NAME = "LBH_008_Base_UNet_1024_sliding_window_50e"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -9,9 +9,13 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_clahe_crop'
+    DATASET_FILE = 'dataset.dataset_dali_sliding'
     MODEL_FILE = 'model.model_unet'
-    INFERENCE_FILE = 'inference.inference'
+    INFERENCE_FILE = 'inference.inference_sliding'
+    
+    # [Sliding Window 설정]
+    WINDOW_SIZE = 1024  # 윈도우 크기
+    STRIDE = 1024       # 스트라이드 (2x2 패치)
     
     # [2] 학습 환경
     DATA_ROOT = "../data" 
@@ -23,10 +27,10 @@ class Config:
     if not os.path.exists(SAVED_DIR):
         os.makedirs(SAVED_DIR)
 
-    RESIZE_SIZE = (512, 512)
+    RESIZE_SIZE = (512, 512)  # DALI sliding에서는 무시됨 (원본 2048 유지)
     BATCH_SIZE = 8  
     NUM_WORKERS = 4
-    NUM_EPOCHS = 100
+    NUM_EPOCHS = 50
     
     # [2] 학습 제어 설정 (NEW)
     # ========================================================

@@ -37,6 +37,7 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 │   ├── dataset.py          # 기본 데이터셋 로더
 │   ├── dataset_dali_v1.py  # [New] DALI + Weak SSR (Scaled)
 │   ├── dataset_dali_v2.py  # [New] DALI + SSR (Unscaled)
+│   ├── dataset_dali_sliding.py  # [New] Sliding Window (1024x1024, 2x2 patches)
 │   ├── dataset_crop.py     # BBox 기반 손 중심 크롭 (Hand-centered)
 │   ├── dataset_flip.py     # 모델 기반 손 방향 정규화 (Flip)
 │   ├── dataset_exclude.py  # Artifact(ID363, ID387) 제외 필터링
@@ -56,7 +57,8 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 ├── inference/           # 추론 및 결과 생성
 │   ├── inference.py        # 기본 추론 및 RLE 생성
 │   ├── inference_crop.py   # 크롭 기반 추론 및 마스크 원복 로직
-│   └── inference_flip.py   # 2단계 추론 (방향 판별 -> 정규화 -> 세그멘테이션)
+│   ├── inference_flip.py   # 2단계 추론 (방향 판별 -> 정규화 -> 세그멘테이션)
+│   └── inference_sliding.py  # [New] Sliding Window 추론 (2x2 패치 재조합)
 ├── config.py            # [Control Center] 모든 실험 설정 및 하이퍼파라미터
 ├── train_dali.py        # [New] NVIDIA DALI 기반 초고속 학습 엔진
 ├── run_exp.py           # [Unified] 통합 실행 스크립트 (DALI/PyTorch 자동 감지)
@@ -76,7 +78,8 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 - **버전별 특징**:
     - **v1 (`dataset_dali_v1`)**: **Scaled SSR** 
     - **v2 (`dataset_dali_v2`)**: **Unscaled SSR** 
-    - 공통: 두 버전 모두 **Hybrid JPEG Pipeline (CPU Resize -> CLAHE)** 을 적용하여 전송 병목 없이 초고속 학습이 가능합니다. (`tools/preprocess_to_jpeg.py`로 사전 변환 필요)
+    - **sliding (`dataset_dali_sliding`)**: **Sliding Window** - 2048x2048 이미지를 1024x1024 윈도우로 2x2 분할 처리
+    - 공통: 모든 버전에서 **Hybrid JPEG Pipeline (CPU CLAHE -> GPU Processing)** 을 적용하여 전송 병목 없이 초고속 학습이 가능합니다. (`tools/preprocess_to_jpeg.py`로 사전 변환 필요)
 
 ### 🍱 2. 데이터 전처리 전략 (Preprocessing)
 - **Image Resizing**: 고해상도 이미지를 모델 입력을 위해 512x512 또는 1024x1024 등으로 리사이즈하여 사용합니다.
@@ -94,10 +97,12 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 - `MODEL_FILE`: 사용할 모델 (`model.model_nnunet`, `model.model_segformer` 등)
 - `DATASET_FILE`: 데이터셋 로더 선택
     - 일반: `dataset.dataset`, `dataset.dataset_clahe` 등
-    - DALI: `dataset.dataset_dali_v1` (안정형), `dataset.dataset_dali_v2` (고속형)
+    - DALI: `dataset.dataset_dali_v1` (안정형), `dataset.dataset_dali_v2` (고속형), `dataset.dataset_dali_sliding` (Sliding Window)
 - `EXPERIMENT_NAME`: 실험 이름 (체크포인트 폴더명 및 WandB 로그명)
 - `BATCH_SIZE`: 배치 크기 (GPU 메모리에 따라 조정)
 - `NUM_EPOCHS`: 학습 에폭 수
+- `WINDOW_SIZE`: Sliding Window 윈도우 크기 (기본값: 1024)
+- `STRIDE`: Sliding Window 스트라이드 (기본값: 1024)
 
 **예시:**
 ```python

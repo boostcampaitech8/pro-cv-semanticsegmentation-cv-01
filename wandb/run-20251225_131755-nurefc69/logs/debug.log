@@ -1,0 +1,23 @@
+2025-12-25 13:17:55,561 INFO    MainThread:1950988 [wandb_setup.py:_flush():80] Current SDK version is 0.23.1
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_setup.py:_flush():80] Configure stats pid to 1950988
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_setup.py:_flush():80] Loading settings from /data/ephemeral/home/.config/wandb/settings
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_setup.py:_flush():80] Loading settings from /data/ephemeral/home/work/wandb/settings
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_setup.py:_flush():80] Loading settings from environment variables
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_init.py:setup_run_log_directory():714] Logging user logs to /data/ephemeral/home/work/wandb/run-20251225_131755-nurefc69/logs/debug.log
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_init.py:setup_run_log_directory():715] Logging internal logs to /data/ephemeral/home/work/wandb/run-20251225_131755-nurefc69/logs/debug-internal.log
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_init.py:init():841] calling init triggers
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_init.py:init():846] wandb.init called with sweep_config: {}
+config: {'epochs': 50, 'batch_size': 8, 'learning_rate': 0.0001, 'optimizer': 'AdamW', 'loss_function': 'Dice', 'scheduler': 'None', 'dataloader': 'DALI', 'dataset_file': 'dataset.dataset_dali_sliding', '_wandb': {}}
+2025-12-25 13:17:55,562 INFO    MainThread:1950988 [wandb_init.py:init():889] starting backend
+2025-12-25 13:17:55,849 INFO    MainThread:1950988 [wandb_init.py:init():892] sending inform_init request
+2025-12-25 13:17:55,854 INFO    MainThread:1950988 [wandb_init.py:init():900] backend started and connected
+2025-12-25 13:17:55,856 INFO    MainThread:1950988 [wandb_init.py:init():970] updated telemetry
+2025-12-25 13:17:55,863 INFO    MainThread:1950988 [wandb_init.py:init():994] communicating run to backend with 90.0 second timeout
+2025-12-25 13:17:56,575 INFO    MainThread:1950988 [wandb_init.py:init():1041] starting run threads in backend
+2025-12-25 13:17:56,799 INFO    MainThread:1950988 [wandb_run.py:_console_start():2521] atexit reg
+2025-12-25 13:17:56,800 INFO    MainThread:1950988 [wandb_run.py:_redirect():2369] redirect: wrap_raw
+2025-12-25 13:17:56,800 INFO    MainThread:1950988 [wandb_run.py:_redirect():2438] Wrapping output streams.
+2025-12-25 13:17:56,800 INFO    MainThread:1950988 [wandb_run.py:_redirect():2461] Redirects installed.
+2025-12-25 13:17:56,802 INFO    MainThread:1950988 [wandb_init.py:init():1081] run started, returning control to user process
+2025-12-25 13:18:09,904 INFO    wandb-AsyncioManager-main:1950988 [service_client.py:_forward_responses():80] Reached EOF.
+2025-12-25 13:18:09,904 INFO    wandb-AsyncioManager-main:1950988 [mailbox.py:close():137] Closing mailbox, abandoning 1 handles.

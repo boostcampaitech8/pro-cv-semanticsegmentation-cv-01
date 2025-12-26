@@ -1,0 +1,20 @@
+>> WandB Initialized: HandBoneSeg / LBH_008_Base_UNet_1024_sliding_window_50e_DALI
+>> Initializing DALI DataLoaders from dataset.dataset_dali_sliding...
+[Sliding Window] Images: 640, Patches per image: 4, Total patches: 2560
+
+[ERROR] Training failed: Critical error in pipeline:
+Critical error in pipeline:
+Error in GPU operator `nvidia.dali.fn.slice`,
+which was used in the pipeline definition with the following traceback:
+
+  File "/data/ephemeral/home/.venv/lib/python3.10/site-packages/nvidia/dali/pipeline.py", line 919, in _build_graph
+    outputs = define_graph()
+  File "/data/ephemeral/home/work/dataset/dataset_dali_sliding.py", line 290, in define_graph
+    images = fn.slice(
+
+encountered:
+
+Assert on "ws.NumInput() == spec.GetSchema().MinNumInput()" failed: Named arguments start/end/shape are not compatible with positional anchor and shape inputs
+C++ context: [/opt/dali/dali/operators/generic/slice/slice_attr.h:372]
+Current pipeline object is no longer valid.
+Current pipeline object is no longer valid.
