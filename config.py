@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_021_Unet_sw_speedtest"
+    EXPERIMENT_NAME = "WJH_025_hrnet_1024_dice_lr_5e-5"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -9,9 +9,9 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_dali_sliding_preprocessed'
-    MODEL_FILE = 'model.model_unet'
-    INFERENCE_FILE = 'inference.inference_sliding'
+    DATASET_FILE = 'dataset.dataset_dali_v1'
+    MODEL_FILE = 'model.model_hrnet_w32'
+    INFERENCE_FILE = 'inference.inference'
     
     # [Sliding Window 설정]
     WINDOW_SIZE = 1024  # 윈도우 크기
@@ -27,10 +27,10 @@ class Config:
     if not os.path.exists(SAVED_DIR):
         os.makedirs(SAVED_DIR)
 
-    RESIZE_SIZE = (512, 512)  # DALI sliding에서는 무시됨 (원본 2048 유지)
-    BATCH_SIZE = 8  
+    RESIZE_SIZE = (1024, 1024)  # DALI sliding에서는 무시됨 (원본 2048 유지)
+    BATCH_SIZE = 2  
     NUM_WORKERS = 4
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 200
     
     # [2] 학습 제어 설정 (NEW)
     # ========================================================
@@ -41,16 +41,16 @@ class Config:
     SAVE_BEST_MODEL = True      # True: 최고 점수 갱신 시 저장 / False: 저장 안 함 (마지막 모델만 남음)
     # ========================================================
 
-    VAL_EVERY = 5               # 몇 Epoch마다 검증할지
+    VAL_EVERY = 1               # 몇 Epoch마다 검증할지
     WANDB_VIS_EVERY = 5
     
-    LR = 1e-4
+    LR = 5e-5
     RANDOM_SEED = 21
     OPTIMIZER = 'AdamW'
 
     # [NEW] Scheduler 설정
     # 옵션: 'ReduceLROnPlateau', 'StepLR', 'CosineAnnealingLR', 'None'
-    SCHEDULER = 'None' 
+    SCHEDULER = 'CosineAnnealingLR' 
     
     # 1. ReduceLROnPlateau 설정 (성능 향상 멈추면 줄이기 - 추천)
     SCHEDULER_PATIENCE = 2      # 성능 향상 없는 Epoch 수
@@ -62,7 +62,37 @@ class Config:
     SCHEDULER_GAMMA = 0.5       # 절반으로 줄임
     
     # 3. CosineAnnealingLR 설정 (부드럽게 줄였다 늘렸다 - 고급)
-    SCHEDULER_T_MAX = 50        # 보통 총 Epoch 수와 맞춤
+    SCHEDULER_T_MAX = 30        # 보통 총 Epoch 수와 맞춤
+
+    # [NEW] Warmup Scheduler 설정 (초반 발산 방지)
+    USE_WARMUP = True           # True: 사용 / False: 사용 안 함
+    WARMUP_EPOCHS = 5           # 초반 몇 Epoch 동안 Warmup 할지
+    WARMUP_MIN_LR = 1e-6        # Warmup 시작 LR (여기서부터 목표 LR까지 증가)
+    
+    # [TTA 설정] - inference_tta 사용 시 적용
+    TTA_MODE = '' # 'hflip', 'vflip', 'd4'
+    TTA_SCALES = [1.0] # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
+
+    # [앙상블 설정] - inference_ensemble 사용 시 적용
+    # 각 모델별로 TTA, Sliding 여부를 다르게 설정 가능
+    # 각 모델별로 어떤 추론 스크립트를 쓸지 지정 가능
+    ENSEMBLE_MODELS = [
+        # {
+        #    'path': "saved/WJH_023_hrnet/best_model.pt", 
+        #    'inference_file': 'inference.inference_tta',  # 사용할 스크립트 지정
+        #    'tta_mode': 'hflip', 
+        #    'scales': [1.0]
+        # },
+        # {
+        #    'path': "saved/WJH_024_hrnet_ocr/best_model.pt", 
+        #    'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+        #    'window_size': 1024,
+        #    'stride': 1024
+        # }
+    ]
+    ENSEMBLE_STRATEGY = 'weighted'  # 'manual', 'weighted'
+
+    # [Loss 선택지]
 
     # [Loss 선택지]
     # 1. 'BCE'               : 가장 기초. (지금 쓰고 계신 것)
