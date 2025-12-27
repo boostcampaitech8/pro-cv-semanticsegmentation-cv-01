@@ -152,7 +152,7 @@ def test():
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
     
     # Get RLE Dict directly (RAM Efficient)
-    results_dict = predict_and_encode(model, test_loader)
+    results_dict = get_probs(model, test_loader)
     
     # Save CSV
     print("Saving CSV...")
