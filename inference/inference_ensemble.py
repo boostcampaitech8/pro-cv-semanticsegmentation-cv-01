@@ -89,10 +89,69 @@ def test():
         print("Please configure ENSEMBLE_MODELS in config.py")
         return
 
-    dataset_module = importlib.import_module(Config.DATASET_FILE)
-    XRayInferenceDataset = dataset_module.XRayInferenceDataset
-    XRayDataset = dataset_module.XRayDataset # For Validation
-    get_transforms = dataset_module.get_transforms
+class ValidationWrapper:
+    """
+    Adapts a Validation Loader (yielding image, mask) 
+    to an Inference Loader signature (yielding image, image_names)
+    by injecting filenames from a provided list.
+    """
+    def __init__(self, loader, filenames):
+        self.loader = loader
+        self.filenames = filenames
+        self.batch_size = loader.batch_size if hasattr(loader, 'batch_size') else 1
+    
+    def __len__(self):
+        return len(self.loader)
+    
+    def __iter__(self):
+        iterator = iter(self.loader)
+        for i, batch in enumerate(iterator):
+            # Unpack (image, mask)
+            if isinstance(batch, (list, tuple)):
+                image = batch[0]
+            elif isinstance(batch, dict):
+                image = batch['image']
+            else:
+                image = batch
+            
+            # Get Names
+            start_idx = i * self.batch_size
+            end_idx = min(start_idx + self.batch_size, len(self.filenames))
+            batch_names = self.filenames[start_idx : end_idx]
+            
+            yield image, batch_names
+
+def get_validation_data(dataset_module_path):
+    """
+    Helper to get validation loader and filenames transparently 
+    supporting both Standard and DALI datasets.
+    """
+    mod = importlib.import_module(dataset_module_path)
+    
+    if hasattr(mod, 'get_dali_loader'):
+        # DALI Case
+        loader = mod.get_dali_loader(is_train=False, batch_size=1)
+        # Access source filenames (Assume DALI wrapper structure)
+        filenames = loader.source.filenames
+    else:
+        # Standard Case
+        XRayDataset = mod.XRayDataset
+        get_transforms = mod.get_transforms
+        dataset = XRayDataset(is_train=False, transforms=get_transforms(is_train=False))
+        loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
+        filenames = dataset.filenames
+        
+    return loader, filenames
+
+def test():
+    models_config = parse_ensemble_config()
+    if not models_config:
+        print("Please configure ENSEMBLE_MODELS in config.py")
+        return
+
+    # Base module for types - mostly unused now due to dynamic loading below
+    # but kept for XRayInferenceDataset usage in Phase 2
+    global_dataset_module = importlib.import_module(Config.DATASET_FILE)
 
     # ====================================================
     # 1. Weight Optimization (Validation Step)
@@ -102,8 +161,10 @@ def test():
 
     if USE_OPTIMIZATION:
         print("\n[Phase 1] Auto-Finding Ensemble Weights on Validation Set...")
-        valid_dataset = XRayDataset(is_train=False, transforms=get_transforms(is_train=False))
-        valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False, num_workers=4)
+        
+        # Load Reference Validation Data (Target GT)
+        # Use Config.DATASET_FILE as the source of truth for GT
+        valid_loader, valid_filenames = get_validation_data(Config.DATASET_FILE)
         
         # Collect Valid Probs and GT
         valid_model_probs = [] # [Model1_Probs(N,C,H,W), Model2_Probs...]
@@ -111,8 +172,19 @@ def test():
         
         # Load GT once
         print("Loading GT Masks...")
-        for _, masks in valid_loader:
-             valid_gts.append(masks.numpy())
+        for batch in valid_loader:
+            # Handle DALI/Standard Return (image, mask)
+            if isinstance(batch, (list, tuple)):
+                masks = batch[1]
+            elif isinstance(batch, dict):
+                masks = batch['mask']
+            
+            # Ensure CPU Numpy
+            if isinstance(masks, torch.Tensor):
+                masks = masks.cpu().numpy()
+                
+            valid_gts.append(masks)
+            
         valid_gts = np.concatenate(valid_gts, axis=0) # (N, C, H, W)
         
         # Run Inference for each model on Valid
@@ -125,42 +197,43 @@ def test():
             print(f">> [Valid Inference] Model {i+1} ({inf_module_name}) | Dataset: {target_dataset_file}...")
             
             try:
-                # Dynamic Dataset Loading
-                ds_module = importlib.import_module(target_dataset_file)
-                get_transforms_fn = ds_module.get_transforms
-                XRayDataset_cls = ds_module.XRayDataset
+                # Dynamic Dataset Loading (Validation Adapter)
+                curr_valid_loader, curr_valid_filenames = get_validation_data(target_dataset_file)
                 
-                # Re-instantiate Loader with specific transforms
-                # Note: Validation requires consistency in image order/content.
-                # Assuming all datasets return aligned filenames/IDs.
-                curr_valid_dataset = XRayDataset_cls(is_train=False, transforms=get_transforms_fn(is_train=False))
-                curr_valid_loader = DataLoader(curr_valid_dataset, batch_size=1, shuffle=False, num_workers=4)
+                # Wrap for Inference (image, mask) -> (image, filename)
+                inference_adapter = ValidationWrapper(curr_valid_loader, curr_valid_filenames)
                 
                 inf_module = importlib.import_module(inf_module_name)
                 
                 # Check if get_probs supports array return or we construct it
-                probs_dict = inf_module.get_probs(model, curr_valid_loader, **cfg)
+                probs_dict = inf_module.get_probs(model, inference_adapter, **cfg)
                 
                 # Align with loader (Use global valid_dataset for canonical filename order)
                 # This assumes filename lists match across datasets
                 aligned_probs = []
-                for fname in valid_dataset.filenames: 
+                for fname in valid_filenames: 
                      aligned_probs.append(probs_dict[os.path.basename(fname)])
                 
                 valid_model_probs.append(np.stack(aligned_probs))
                 
             except Exception as e:
                 print(f"Error during optimization: {e}")
-                return
+                # return # Do not return, maybe just skip optimization?
+                # Actually if optimization fails, we should probably fallback to avg
+                print("Fallback to Average weights due to error.")
+                weights = None
+                break
             
             del model, probs_dict
             torch.cuda.empty_cache()
 
-        # Find Weights
-        weights = find_optimal_weights(valid_model_probs, valid_gts)
+        # Find Weights if successful
+        if weights is None and len(valid_model_probs) == len(models_config):
+             weights = find_optimal_weights(valid_model_probs, valid_gts)
         
         # Clean up Valid memory
-        del valid_model_probs, valid_gts
+        if 'valid_model_probs' in locals(): del valid_model_probs
+        if 'valid_gts' in locals(): del valid_gts
         import gc; gc.collect()
         
     elif weights is None:
@@ -171,9 +244,25 @@ def test():
     # ====================================================
     # 2. Test Inference (Main Step)
     # ====================================================
+    # ====================================================
+    # 2. Test Inference (Main Step)
+    # ====================================================
     print("\n[Phase 2] Running Inference on Test Set...")
+    
+    # Use global dataset module for the base test loader structure if needed
+    # But usually we re-instantiate inside the loop. 
+    # However, 'test_dataset' init here is mainly for printing or structure? 
+    # Actually checking original code: lines 175-176 do instantiate a loader but it's UNUSED!
+    # Because inside the loop (line 196) we re-instantiate `test_dataset` and `test_loader` for every model.
+    # So we can just remove the unused instantiation or fix it.
+    # Let's keep it but fix the name reference.
+    
+    XRayInferenceDataset = global_dataset_module.XRayInferenceDataset
+    get_transforms = global_dataset_module.get_transforms
+    
     test_dataset = XRayInferenceDataset(transforms=get_transforms(is_train=False))
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
+
     
     # Run Inference for each model on Test
     all_model_probs = [] # List of dicts {filename: prob}
