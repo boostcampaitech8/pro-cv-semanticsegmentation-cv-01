@@ -7,7 +7,7 @@ import time
 experiments = [
     # 1. Base: BCE + Dice (Standard)
     {
-        "exp_name": "WJH_025_hrnet_w18_512_BCE_Dice",
+        "exp_name": "WJH_026_hrnet_w18_512_BCE_Dice",
         "dataset_file": "dataset.dataset_dali_v1",
         "model_file": "model.model_hrnet_w18",
         "loss": "Combined_BCE_Dice",
@@ -18,7 +18,7 @@ experiments = [
     
     # 2. Hard Mining: Focal + Dice (Ranker Choice)
     {
-        "exp_name": "WJH_026_hrnet_w18_512_Focal_Dice",
+        "exp_name": "WJH_027_hrnet_w18_512_Focal_Dice",
         "dataset_file": "dataset.dataset_dali_v1",
         "model_file": "model.model_hrnet_w18",
         "loss": "Combined_Focal_Dice",
@@ -29,7 +29,7 @@ experiments = [
     
     # 3. Recall Boost: Tversky (For small bone recall)
     {
-        "exp_name": "WJH_027_hrnet_w18_512_Tversky",
+        "exp_name": "WJH_028_hrnet_w18_512_Tversky",
         "dataset_file": "dataset.dataset_dali_v1",
         "model_file": "model.model_hrnet_w18",
         "loss": "Tversky",
@@ -40,7 +40,7 @@ experiments = [
     
     # 4. Imbalance: Generalized Dice
     {
-        "exp_name": "WJH_028_hrnet_w18_512_GeneralizedDice",
+        "exp_name": "WJH_029_hrnet_w18_512_GeneralizedDice",
         "dataset_file": "dataset.dataset_dali_v1",
         "model_file": "model.model_hrnet_w18",
         "loss": "GeneralizedDice",
@@ -51,10 +51,21 @@ experiments = [
     
     # 5. Boundary: Pixel Weighted BCE
     {
-        "exp_name": "WJH_029_hrnet_w18_512_WeightedBCE",
+        "exp_name": "WJH_030_hrnet_w18_512_WeightedBCE",
         "dataset_file": "dataset.dataset_dali_v1",
         "model_file": "model.model_hrnet_w18",
         "loss": "WeightedBCE",
+        "epoch": 100,
+        "resize_size": 512,
+        "lr": 5e-5
+    },
+    
+    # 6. Pure Dice Loss
+    {
+        "exp_name": "WJH_031_hrnet_w18_512_Dice",
+        "dataset_file": "dataset.dataset_dali_v1",
+        "model_file": "model.model_hrnet_w18",
+        "loss": "Dice",
         "epoch": 100,
         "resize_size": 512,
         "lr": 5e-5

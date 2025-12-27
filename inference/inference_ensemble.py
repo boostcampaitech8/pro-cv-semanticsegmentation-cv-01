@@ -149,8 +149,7 @@ def test():
         print("Please configure ENSEMBLE_MODELS in config.py")
         return
 
-    # Base module for types - mostly unused now due to dynamic loading below
-    # but kept for XRayInferenceDataset usage in Phase 2
+    # Base module
     global_dataset_module = importlib.import_module(Config.DATASET_FILE)
 
     # ====================================================
@@ -160,56 +159,46 @@ def test():
     weights = getattr(Config, 'ENSEMBLE_WEIGHTS', None)
 
     if USE_OPTIMIZATION:
-        print("\n[Phase 1] Auto-Finding Ensemble Weights on Validation Set...")
+        print("\n[Phase 1] Auto-Finding Ensemble Weights on Validation Set (Low-Res Optimization)...")
         
         # Load Reference Validation Data (Target GT)
-        # Use Config.DATASET_FILE as the source of truth for GT
         valid_loader, valid_filenames = get_validation_data(Config.DATASET_FILE)
         
         # Collect Valid Probs and GT
-        valid_model_probs = [] # [Model1_Probs(N,C,H,W), Model2_Probs...]
+        valid_model_probs = [] 
         valid_gts = []
         
-        # Load GT once
-        print("Loading GT Masks...")
+        # Load GT & Resize to 256x256
+        print("Loading GT Masks (Downsampling to 256x256)...")
         for batch in valid_loader:
-            # Handle DALI/Standard Return (image, mask)
-            if isinstance(batch, (list, tuple)):
-                masks = batch[1]
-            elif isinstance(batch, dict):
-                masks = batch['mask']
+            if isinstance(batch, (list, tuple)): masks = batch[1]
+            elif isinstance(batch, dict): masks = batch['mask']
             
-            # Ensure CPU Numpy
             if isinstance(masks, torch.Tensor):
+                # Resize GT to 256
+                masks = F.interpolate(masks.float(), size=(256, 256), mode='nearest')
                 masks = masks.cpu().numpy()
                 
             valid_gts.append(masks)
             
-        valid_gts = np.concatenate(valid_gts, axis=0) # (N, C, H, W)
+        valid_gts = np.concatenate(valid_gts, axis=0) # (N, C, 256, 256)
         
         # Run Inference for each model on Valid
         for i, cfg in enumerate(models_config):
             model = load_model(cfg['path'])
             inf_module_name = cfg['inference_file']
-            
-            # [NEW] Determine Dataset File for this model
             target_dataset_file = cfg.get('dataset_file', Config.DATASET_FILE)
-            print(f">> [Valid Inference] Model {i+1} ({inf_module_name}) | Dataset: {target_dataset_file}...")
+            print(f">> [Valid] Model {i+1} | Dataset: {target_dataset_file}...")
             
             try:
-                # Dynamic Dataset Loading (Validation Adapter)
                 curr_valid_loader, curr_valid_filenames = get_validation_data(target_dataset_file)
-                
-                # Wrap for Inference (image, mask) -> (image, filename)
                 inference_adapter = ValidationWrapper(curr_valid_loader, curr_valid_filenames)
-                
                 inf_module = importlib.import_module(inf_module_name)
                 
-                # Check if get_probs supports array return or we construct it
-                probs_dict = inf_module.get_probs(model, inference_adapter, **cfg)
+                # Request Downsampled Probs (256x256)
+                # Assumes inf_module.get_probs supports return_downsampled
+                probs_dict = inf_module.get_probs(model, inference_adapter, return_downsampled=256, **cfg)
                 
-                # Align with loader (Use global valid_dataset for canonical filename order)
-                # This assumes filename lists match across datasets
                 aligned_probs = []
                 for fname in valid_filenames: 
                      aligned_probs.append(probs_dict[os.path.basename(fname)])
@@ -218,22 +207,17 @@ def test():
                 
             except Exception as e:
                 print(f"Error during optimization: {e}")
-                # return # Do not return, maybe just skip optimization?
-                # Actually if optimization fails, we should probably fallback to avg
-                print("Fallback to Average weights due to error.")
+                print("Fallback to Average weights.")
                 weights = None
                 break
             
             del model, probs_dict
             torch.cuda.empty_cache()
 
-        # Find Weights if successful
         if weights is None and len(valid_model_probs) == len(models_config):
              weights = find_optimal_weights(valid_model_probs, valid_gts)
         
-        # Clean up Valid memory
-        if 'valid_model_probs' in locals(): del valid_model_probs
-        if 'valid_gts' in locals(): del valid_gts
+        del valid_model_probs, valid_gts
         import gc; gc.collect()
         
     elif weights is None:
@@ -242,52 +226,46 @@ def test():
     print(f"\n>> Final Ensemble Weights: {weights}")
 
     # ====================================================
-    # 2. Test Inference (Main Step)
+    # 2. Test Inference (Disk Caching Strategy)
     # ====================================================
-    # ====================================================
-    # 2. Test Inference (Main Step)
-    # ====================================================
-    print("\n[Phase 2] Running Inference on Test Set...")
+    print("\n[Phase 2] Running Inference on Test Set (Disk Caching Mode)...")
     
-    # Use global dataset module for the base test loader structure if needed
-    # But usually we re-instantiate inside the loop. 
-    # However, 'test_dataset' init here is mainly for printing or structure? 
-    # Actually checking original code: lines 175-176 do instantiate a loader but it's UNUSED!
-    # Because inside the loop (line 196) we re-instantiate `test_dataset` and `test_loader` for every model.
-    # So we can just remove the unused instantiation or fix it.
-    # Let's keep it but fix the name reference.
+    # Setup Temp Dirs
+    import shutil
+    temp_root = "temp_ensemble_cache"
+    if os.path.exists(temp_root): shutil.rmtree(temp_root)
+    os.makedirs(temp_root, exist_ok=True)
     
-    XRayInferenceDataset = global_dataset_module.XRayInferenceDataset
-    get_transforms = global_dataset_module.get_transforms
-    
-    test_dataset = XRayInferenceDataset(transforms=get_transforms(is_train=False))
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
-
-    
-    # Run Inference for each model on Test
-    all_model_probs = [] # List of dicts {filename: prob}
+    # 1. Generate Probs to Disk
+    filenames = None # Will grab from first model
     
     for i, cfg in enumerate(models_config):
         model = load_model(cfg['path'])
         inf_module_name = cfg['inference_file']
-        
-        # [NEW] Determine Dataset File for this model
         target_dataset_file = cfg.get('dataset_file', Config.DATASET_FILE)
-        print(f">> [Test Inference] Model {i+1} ({inf_module_name}) | Dataset: {target_dataset_file}...")
+        
+        # Create dedicated dir for this model
+        model_save_dir = os.path.join(temp_root, f"model_{i}")
+        os.makedirs(model_save_dir, exist_ok=True)
+        
+        print(f">> [Test] Model {i+1} -> Saving to {model_save_dir}...")
         
         try:
-            # Dynamic Dataset Loading
             ds_module = importlib.import_module(target_dataset_file)
-            get_transforms_fn = ds_module.get_transforms
             XRayInferenceDataset_cls = ds_module.XRayInferenceDataset
+            get_transforms_fn = ds_module.get_transforms
             
-            # Re-instantiate Loader with specific transforms
             test_dataset = XRayInferenceDataset_cls(transforms=get_transforms_fn(is_train=False))
             test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
             
+            # Capture filenames from dataset 
+            if filenames is None:
+                # Standardize filenames list (basenames)
+                filenames = [os.path.basename(f) for f in test_dataset.filenames]
+            
             inf_module = importlib.import_module(inf_module_name)
-            probs = inf_module.get_probs(model, test_loader, **cfg)
-            all_model_probs.append(probs)
+            # CALL get_probs with save_dir
+            inf_module.get_probs(model, test_loader, save_dir=model_save_dir, **cfg)
             
         except Exception as e:
              print(f"Error processing model {i+1}: {e}")
@@ -296,26 +274,45 @@ def test():
         del model
         torch.cuda.empty_cache()
 
-    # Aggregation
-    print(">> Aggregating Results...")
+    # 2. Aggregate from Disk
+    print("\n>> Aggregating Results from Disk & Creating CSV...")
     results_dict = {}
-    filenames = list(all_model_probs[0].keys())
     
-    for name in tqdm(filenames, desc="Ensemble Voting"):
+    # Iterate over images
+    for name in tqdm(filenames, desc="Disk Ensemble"):
         final_prob = None
-        for i, model_probs in enumerate(all_model_probs):
-            p = model_probs[name]
+        
+        # Load each model's prediction
+        for i in range(len(models_config)):
+            npy_path = os.path.join(temp_root, f"model_{i}", name + ".npy")
+            
+            if not os.path.exists(npy_path):
+                print(f"[Warning] Missing {name} for model {i}")
+                continue
+                
+            # Load Float16, Convert to Float32 for precision math
+            p = np.load(npy_path).astype(np.float32)
             w = weights[i]
+            
             if final_prob is None: final_prob = w * p
             else: final_prob += w * p
-        
-        pred_mask = (final_prob > 0.5)
-        for c, segm in enumerate(pred_mask):
-            rle = encode_mask_to_rle(segm)
-            class_name = Config.CLASSES[c]
-            results_dict[f"{class_name}_{name}"] = rle
+            
+            # Remove file to save space immediately? 
+            # Safe to remove if we don't need it anymore.
+            os.remove(npy_path)
+            
+        # Threshold & Encode
+        if final_prob is not None:
+            pred_mask = (final_prob > 0.5)
+            for c, segm in enumerate(pred_mask):
+                rle = encode_mask_to_rle(segm)
+                class_name = Config.CLASSES[c]
+                results_dict[f"{class_name}_{name}"] = rle
 
-    # Save
+    # Cleanup Temp Dir
+    shutil.rmtree(temp_root)
+
+    # Save CSV
     print("Saving Ensemble CSV...")
     sample_sub_path = "sample_submission.csv"
     if os.path.exists(sample_sub_path):
@@ -323,20 +320,14 @@ def test():
         final_rles = []
         for _, row in sample_df.iterrows():
             key = f"{row['class']}_{row['image_name']}"
-            final_rles.append(results_dict.get(key, ""))
+            rle = results_dict.get(key, "")
+            final_rles.append(rle)
+            
         sample_df['rle'] = final_rles
         
         num_models = len(models_config)
-        
-        if USE_OPTIMIZATION:
-            strategy = "opt"
-        elif getattr(Config, 'ENSEMBLE_WEIGHTS', None) is not None:
-            strategy = "manual"
-        else:
-            strategy = "avg"
-            
-        # Format weights strictly to 2 decimal places, joined by hyphen
         weights_str = "-".join([f"{w:.2f}" for w in weights])
+        strategy = "opt" if USE_OPTIMIZATION else ("manual" if getattr(Config, 'ENSEMBLE_WEIGHTS', None) else "avg")
         
         save_name = f"submission_ens_{num_models}models_{strategy}_{weights_str}.csv"
         sample_df.to_csv(save_name, index=False)
