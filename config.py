@@ -9,7 +9,7 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_dali_v2'
+    DATASET_FILE = 'dataset.dataset_dali'
     MODEL_FILE = 'model.model_segformer'
     INFERENCE_FILE = 'inference.inference'
     
