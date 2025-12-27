@@ -50,13 +50,18 @@ def predict_sliding_image(model, image, window_size, stride):
     
     return full_mask
 
-def get_probs(model, loader, window_size=None, stride=None):
+def get_probs(model, loader, save_dir=None, return_downsampled=None, window_size=None, stride=None):
     if window_size is None: window_size = getattr(Config, 'WINDOW_SIZE', 1024)
     if stride is None: stride = getattr(Config, 'STRIDE', 512)
     
+    if save_dir and not os.path.exists(save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+        
     print(f">> [inference_sliding] Window={window_size}, Stride={stride}")
+    if save_dir: print(f"   -> Saving results to {save_dir} (float16)")
+    if return_downsampled: print(f"   -> Returning downsampled results (Size: {return_downsampled})")
     
-    accum_probs = {}
+    results = {}
     model.eval()
     
     with torch.no_grad():
@@ -64,19 +69,37 @@ def get_probs(model, loader, window_size=None, stride=None):
             # images: (B, 3, H, W) - usually B=1
             for img, name in zip(images, image_names):
                 img = img.cuda()
+                # prob is (C, H, W) Tensor on CUDA
                 prob = predict_sliding_image(model, img, window_size, stride)
                 
-                # Resize to 2048 if needed (sliding usually keeps full size though)
-                if prob.shape[1] != 2048:
-                    prob = F.interpolate(prob.unsqueeze(0), size=(2048, 2048), mode="bilinear", align_corners=False).squeeze(0)
+                fname = os.path.basename(name)
                 
-                accum_probs[os.path.basename(name)] = prob.cpu().numpy()
+                # 1. Downsampled Return
+                if return_downsampled:
+                    # Resize
+                    small_prob = F.interpolate(prob.unsqueeze(0), size=(return_downsampled, return_downsampled), mode="bilinear", align_corners=False).squeeze(0)
+                    results[fname] = small_prob.cpu().numpy()
+                    
+                # 2. Disk Save (Float16)
+                elif save_dir:
+                    prob_np = prob.half().cpu().numpy()
+                    np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
+                    
+                # 3. Default: RLE Encoding (RAM Safe)
+                else:
+                    # Resize to 2048 if needed
+                    if prob.shape[1] != 2048:
+                        prob = F.interpolate(prob.unsqueeze(0), size=(2048, 2048), mode="bilinear", align_corners=False).squeeze(0)
+                    
+                    pred_mask = (prob > 0.5)
+                    for c, segm in enumerate(pred_mask):
+                        rle = encode_mask_to_rle(segm.cpu().numpy())
+                        class_name = Config.CLASSES[c]
+                        results[f"{class_name}_{fname}"] = rle
                 
-    return accum_probs
+    return results
 
 def test():
-    # Legacy wrapper
-    # ... (Similar to inference_tta.py test() logic) ...
     try:
         dataset_module = importlib.import_module(Config.DATASET_FILE)
     except ModuleNotFoundError: return
@@ -90,15 +113,10 @@ def test():
     test_dataset = XRayInferenceDataset(transforms=get_transforms(is_train=False))
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
     
-    probs_dict = get_probs(model, test_loader)
+    # Get RLE Dict directly
+    results_dict = get_probs(model, test_loader)
     
-    results_dict = {}
-    for name, prob in probs_dict.items():
-        pred_mask = (prob > 0.5)
-        for c, segm in enumerate(pred_mask):
-            rle = encode_mask_to_rle(segm)
-            class_name = Config.CLASSES[c]
-            results_dict[f"{class_name}_{name}"] = rle
+    # Save CSV
 
     # ... Save CSV ...
     sample_sub_path = "sample_submission.csv"

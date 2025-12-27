@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_033_hrnet_1024_focal_dice_exclude"
+    EXPERIMENT_NAME = "WJH_035_hrnet_w48_1024_focal_dice_exclude"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -10,8 +10,8 @@ class Config:
 
     # [1] 파일 선택
     DATASET_FILE = 'dataset.dataset_dali_exclude'
-    MODEL_FILE = 'model.model_hrnet_w32'
-    INFERENCE_FILE = 'inference.inference'
+    MODEL_FILE = 'model.model_hrnet_w48'
+    INFERENCE_FILE = 'inference.inference_TTA'
     
     # [Sliding Window 설정]
     WINDOW_SIZE = 1024  # 윈도우 크기
@@ -71,7 +71,7 @@ class Config:
     
     # [TTA 설정] - inference_tta 사용 시 적용
     TTA_MODE = '' # 'hflip', 'vflip', 'd4'
-    TTA_SCALES = [1.0] # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
+    TTA_SCALES = [0.9, 1.0, 1.5] # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
 
     # [앙상블 설정] - inference_ensemble 사용 시 적용
     # 각 모델별로 TTA, Sliding 여부를 다르게 설정 가능
