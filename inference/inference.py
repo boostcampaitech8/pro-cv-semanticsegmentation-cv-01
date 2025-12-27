@@ -88,7 +88,7 @@ def test():
         ])
 
     # 5. 최종 저장
-    save_path = f"submission_{Config.EXPERIMENT_NAME}.csv"
+    save_path = f"submission_{Config.EXPERIMENT_NAME}_fixinf.csv"
     final_df.to_csv(save_path, index=False)
     print(f"Saved: {save_path}")
 

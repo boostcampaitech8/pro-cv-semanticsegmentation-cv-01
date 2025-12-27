@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "CSB_007_horizontalflip"
+    EXPERIMENT_NAME = "CSB_011_segb3_4del"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -9,8 +9,8 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_clahe_crop'
-    MODEL_FILE = 'model.model_unet'
+    DATASET_FILE = 'dataset.dataset_dali_v2'
+    MODEL_FILE = 'model.model_segformer'
     INFERENCE_FILE = 'inference.inference'
     
     # [2] 학습 환경
@@ -24,9 +24,9 @@ class Config:
         os.makedirs(SAVED_DIR)
 
     RESIZE_SIZE = (1024, 1024)
-    BATCH_SIZE = 8  
-    NUM_WORKERS = 4
-    NUM_EPOCHS = 50
+    BATCH_SIZE = 2
+    NUM_WORKERS = 8
+    NUM_EPOCHS = 25
     
     # [2] 학습 제어 설정 (NEW)
     # ========================================================

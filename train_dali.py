@@ -37,7 +37,7 @@ def train():
         wandb.init(
             entity=Config.WANDB_ENTITY,
             project=Config.WANDB_PROJECT,
-            name=f"{Config.WANDB_RUN_NAME}_DALI", # Suffix added
+            name=f"{Config.WANDB_RUN_NAME}", # Suffix added
             config={
                 "epochs": Config.NUM_EPOCHS,
                 "batch_size": Config.BATCH_SIZE,
@@ -75,6 +75,12 @@ def train():
 
     # 4. Model & Optimizer
     model = get_model().cuda()
+
+        # --- 여기에 추가하세요 ---
+    if hasattr(model.encoder, 'set_grad_checkpointing'):
+        model.encoder.set_grad_checkpointing(True)
+        print(">> Gradient Checkpointing Enabled.")
+    # -----------------------
 
     if Config.OPTIMIZER == 'Adam':
         optimizer = optim.Adam(model.parameters(), lr=Config.LR)

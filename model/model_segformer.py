@@ -9,4 +9,10 @@ def get_model():
         in_channels=3,
         classes=len(Config.CLASSES)
     )
+        # --- 여기에 추가하세요 ---
+    if hasattr(model.encoder, 'set_grad_checkpointing'):
+        model.encoder.set_grad_checkpointing(True)
+        print(">> Gradient Checkpointing Enabled.")
+    # -----------------------
+    
     return model
