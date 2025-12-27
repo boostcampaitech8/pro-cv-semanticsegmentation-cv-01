@@ -161,29 +161,38 @@ def test():
     if USE_OPTIMIZATION:
         print("\n[Phase 1] Auto-Finding Ensemble Weights on Validation Set (Low-Res Optimization)...")
         
-        # Load Reference Validation Data (Target GT)
+        # 1. Load Reference Validation Data (Target GT)
+        # Use Config.DATASET_FILE as the source of truth for GT
         valid_loader, valid_filenames = get_validation_data(Config.DATASET_FILE)
         
-        # Collect Valid Probs and GT
-        valid_model_probs = [] 
-        valid_gts = []
-        
-        # Load GT & Resize to 256x256
         print("Loading GT Masks (Downsampling to 256x256)...")
+        gt_dict = {} # {filename: mask_array}
+        
+        # Accumulate GTs aligned with filenames
+        # Note: valid_filenames is a list of all filenames in order
+        # valid_loader yields single batches? No, batch_size=1 in get_validation_data
+        
+        current_idx = 0
         for batch in valid_loader:
             if isinstance(batch, (list, tuple)): masks = batch[1]
             elif isinstance(batch, dict): masks = batch['mask']
             
             if isinstance(masks, torch.Tensor):
-                # Resize GT to 256
                 masks = F.interpolate(masks.float(), size=(256, 256), mode='nearest')
                 masks = masks.cpu().numpy()
-                
-            valid_gts.append(masks)
             
-        valid_gts = np.concatenate(valid_gts, axis=0) # (N, C, 256, 256)
+            # Batch size is 1, but technically could be more if changed later
+            # let's iterate batch items
+            batch_size = masks.shape[0]
+            for b in range(batch_size):
+                if current_idx < len(valid_filenames):
+                    fname = os.path.basename(valid_filenames[current_idx])
+                    gt_dict[fname] = masks[b]
+                    current_idx += 1
         
-        # Run Inference for each model on Valid
+        # 2. Collect Predictions from All Models
+        model_probs_dicts = [] # List of {filename: prob}
+        
         for i, cfg in enumerate(models_config):
             model = load_model(cfg['path'])
             inf_module_name = cfg['inference_file']
@@ -195,29 +204,51 @@ def test():
                 inference_adapter = ValidationWrapper(curr_valid_loader, curr_valid_filenames)
                 inf_module = importlib.import_module(inf_module_name)
                 
-                # Request Downsampled Probs (256x256)
-                # Assumes inf_module.get_probs supports return_downsampled
+                # Request Downsampled Probs
                 probs_dict = inf_module.get_probs(model, inference_adapter, return_downsampled=256, **cfg)
                 
-                aligned_probs = []
-                for fname in valid_filenames: 
-                     aligned_probs.append(probs_dict[os.path.basename(fname)])
-                
-                valid_model_probs.append(np.stack(aligned_probs))
+                # Normalize keys to basename just in case
+                normalized_probs_dict = {os.path.basename(k): v for k, v in probs_dict.items()}
+                model_probs_dicts.append(normalized_probs_dict)
                 
             except Exception as e:
-                print(f"Error during optimization: {e}")
-                print("Fallback to Average weights.")
+                print(f"Error during optimization for Model {i+1}: {e}")
+                print("Fallback to Average weights due to critical error.")
                 weights = None
+                model_probs_dicts = None
                 break
             
-            del model, probs_dict
+            del model
             torch.cuda.empty_cache()
-
-        if weights is None and len(valid_model_probs) == len(models_config):
-             weights = find_optimal_weights(valid_model_probs, valid_gts)
+            
+        # 3. Intersection & Alignment
+        if model_probs_dicts:
+            # Start with GT keys
+            common_keys = set(gt_dict.keys())
+            
+            # Intersect with all models
+            for idx, d in enumerate(model_probs_dicts):
+                missing = common_keys - set(d.keys())
+                if missing:
+                    print(f"   [Warning] Model {idx+1} is missing {len(missing)} validation files (likely due to 'exclude'). Dropping them from optimization.")
+                common_keys &= set(d.keys())
+            
+            sorted_keys = sorted(list(common_keys))
+            print(f">> Optimized Intersection: {len(sorted_keys)} files (Original Ref: {len(gt_dict)})")
+            
+            if len(sorted_keys) == 0:
+                 print("Error: No common files found between models and ground truth!")
+                 weights = None
+            else:
+                 # Construct Aligned Arrays
+                 valid_gts = np.stack([gt_dict[k] for k in sorted_keys])
+                 valid_model_probs = []
+                 for d in model_probs_dicts:
+                     valid_model_probs.append(np.stack([d[k] for k in sorted_keys]))
+                 
+                 # Find Weights
+                 weights = find_optimal_weights(valid_model_probs, valid_gts)
         
-        del valid_model_probs, valid_gts
         import gc; gc.collect()
         
     elif weights is None:
