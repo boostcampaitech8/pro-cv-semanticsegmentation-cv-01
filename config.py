@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_025_hrnet_1024_dice_lr_5e-5"
+    EXPERIMENT_NAME = "WJH_033_hrnet_1024_focal_dice_exclude"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -9,7 +9,7 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_dali_v1'
+    DATASET_FILE = 'dataset.dataset_dali_exclude'
     MODEL_FILE = 'model.model_hrnet_w32'
     INFERENCE_FILE = 'inference.inference'
     
@@ -90,7 +90,14 @@ class Config:
         #    'stride': 1024
         # }
     ]
-    ENSEMBLE_STRATEGY = 'weighted'  # 'manual', 'weighted'
+    # ENSEMBLE_STRATEGY removed (Managed by USE_OPTIMIZATION)
+    ENSEMBLE_USE_OPTIMIZATION = False # True: 최적 가중치 자동 탐색 (Weighted Search) / False: 수동 or 균등
+    
+    # [수동 가중치 설정] (USE_OPTIMIZATION = False 일 때 사용)
+    # 모델 개수만큼 리스트로 입력해주세요. (합이 1이 되도록 권장)
+    # 예: [0.7, 0.3] -> 첫 번째 모델에 70%, 두 번째에 30% 반영
+    # None으로 두면 자동으로 1/N (균등) 적용됩니다.
+    ENSEMBLE_WEIGHTS = None
 
     # [Loss 선택지]
 
@@ -100,7 +107,7 @@ class Config:
     # 3. 'Combined_BCE_Dice' : 학습 안정성 + 성능 밸런스형 (추천)
     # 4. 'Combined_Focal_Dice': 캐글 등 상위 랭커들이 가장 많이 쓰는 조합 (강력 추천)
     # util.py 참고
-    LOSS_FUNCTION = 'Dice'
+    LOSS_FUNCTION = 'Combined_Focal_Dice'
 
     # [비율 설정] (앞쪽 Loss, 뒤쪽 Loss)
     # 예: (0.5, 0.5) -> 반반 (기본값)
