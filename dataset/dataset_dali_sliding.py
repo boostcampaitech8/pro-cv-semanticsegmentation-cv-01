@@ -16,17 +16,24 @@ from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 from config import Config
 
 # ============================================================
-# [SINGLE SOURCE OF TRUTH]
-# Define ALL transforms here. DALI Parser will read this.
+# [SLIDING WINDOW VERSION]
+# 1024x1024 window, stride=1024 (2x2 patches)
 # ============================================================
+
 def get_transforms(is_train=True):
-    # Matches dataset_final.py exactly
+    """
+    Sliding Window에서는 Resize 제거!
+    원본 2048 크기 유지 후 GPU에서 슬라이딩 윈도우 크롭
+    """
     if is_train:
         return A.Compose([
-            A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            # Resize 제거! 원본 2048 유지
+            # A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            
+            # CLAHE (CPU)
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
             
-            # [Added] Geometric Transform matches dataset_final.py
+            # SSR은 GPU에서 처리 (DALI)
             A.ShiftScaleRotate(
                 shift_limit=0.05, 
                 scale_limit=0.05,
@@ -39,56 +46,72 @@ def get_transforms(is_train=True):
         ])
     else:
         return A.Compose([
-            A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
+            # Resize 제거!
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ])
 
 # ============================================================
-# [LOGIC] Parse get_transforms for DALI
+# [LOGIC] Parse get_transforms
 # ============================================================
 class DaliTransformParser:
     def __init__(self, is_train=True):
         self.is_train = is_train
         transforms = get_transforms(is_train)
         
+        # Sliding Window 설정
+        self.window_size = getattr(Config, 'WINDOW_SIZE', 1024)
+        self.stride = getattr(Config, 'STRIDE', 1024)
+        
         # Defaults
-        self.resize_shape = Config.RESIZE_SIZE 
         self.mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
         self.std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
         self.cpu_transforms = []
         
-        # Init Geometry flags (Default False)
         self.use_geometric = False
         self.geo_prob = 0.0
         self.rotate_limit = 0; self.scale_limit = 0; self.shift_limit = 0
         self.use_hflip = False; self.hflip_prob = 0.0
 
-        # Parse List
         if transforms:
             t_list = transforms.transforms if isinstance(transforms, A.Compose) else transforms
             for t in t_list:
                 if isinstance(t, A.Resize):
-                    self.resize_shape = (t.height, t.width)
+                    # Resize는 무시 (원본 크기 유지)
+                    pass
+                    
                 elif isinstance(t, A.Normalize):
                     self.mean = [m * 255 for m in t.mean]
                     self.std = [s * 255 for s in t.std]
+                    
+                elif isinstance(t, A.ShiftScaleRotate):
+                    self.use_geometric = True
+                    self.geo_prob = t.p
+                    
+                    r_lim = max(abs(t.rotate_limit[0]), abs(t.rotate_limit[1]))
+                    s_lim = max(abs(t.scale_limit[0]), abs(t.scale_limit[1]))
+                    sx = max(abs(t.shift_limit_x[0]), abs(t.shift_limit_x[1]))
+                    sy = max(abs(t.shift_limit_y[0]), abs(t.shift_limit_y[1]))
+                    sh_lim = max(sx, sy)
+                    
+                    self.rotate_limit = r_lim
+                    self.scale_limit = s_lim
+                    self.shift_limit = sh_lim 
+                    
                 elif isinstance(t, A.HorizontalFlip):
                     self.use_hflip = True
                     self.hflip_prob = t.p
                 elif isinstance(t, (A.Compose, A.OneOf)):
                     pass 
                 else:
-                    # [MODIFIED] Now Includes A.ShiftScaleRotate (CPU Processing)
-                    # CLAHE, SSR, etc. go here
+                    # e.g. CLAHE
                     self.cpu_transforms.append(t)
         
         self.cpu_compose = A.Compose(self.cpu_transforms) if self.cpu_transforms else None
-
+        
     def get_affine_matrix(self, h, w):
         matrix = np.eye(3, dtype=np.float32)[:2, :] 
         
-        # Logic matches dataset_final.py's ShiftScaleRotate
         if self.is_train and self.use_geometric and random.random() < self.geo_prob:
             angle = random.uniform(-self.rotate_limit, self.rotate_limit)
             scale = random.uniform(1 - self.scale_limit, 1 + self.scale_limit)
@@ -104,12 +127,17 @@ class DaliTransformParser:
         return matrix
 
 # ============================================================
-# External Source 
+# External Source (Sliding Window)
 # ============================================================
 class XRayExternalSource:
     def __init__(self, is_train=True):
         self.is_train = is_train
         self.parser = DaliTransformParser(is_train)
+        
+        # Determine JPEG Root
+        self.jpeg_root = Config.IMAGE_ROOT.rstrip('/') + "_jpeg"
+        if not os.path.exists(self.jpeg_root):
+             raise FileNotFoundError(f"JPEG Root not found: {self.jpeg_root}. Run tools/preprocess_to_jpeg.py first.")
             
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
@@ -142,75 +170,107 @@ class XRayExternalSource:
         
         self.filenames = list(filenames)
         self.labelnames = list(labelnames)
-        self.n = len(self.filenames)
         
-        self.indices = list(range(self.n))
+        # Sliding Window: 각 이미지를 4개 패치로 확장 (2x2)
+        self.window_size = self.parser.window_size
+        self.stride = self.parser.stride
+        self.patches_per_image = ((2048 - self.window_size) // self.stride + 1) ** 2
+        # stride=1024 → (2048-1024)//1024 + 1 = 2 → 2x2 = 4 patches
+        
+        self.n = len(self.filenames) * self.patches_per_image
+        
+        print(f"[Sliding Window] Images: {len(self.filenames)}, Patches per image: {self.patches_per_image}, Total patches: {self.n}")
+        
+        self.indices = list(range(len(self.filenames)))
         if is_train:
             random.shuffle(self.indices)
+            
+        # [CACHE]
+        self.last_image_idx = -1
+        self.cached_image = None
+        self.cached_label = None
 
     def __len__(self):
         return self.n
 
     def __call__(self, sample_info):
         idx_in_epoch = sample_info.idx_in_epoch
-        if idx_in_epoch >= self.n: idx_in_epoch %= self.n
+        if idx_in_epoch >= self.n: 
+            idx_in_epoch %= self.n
         
-        real_idx = self.indices[idx_in_epoch]
+        # 어느 이미지의 몇 번째 패치인지 계산
+        image_idx = idx_in_epoch // self.patches_per_image
+        patch_idx = idx_in_epoch % self.patches_per_image
+        
+        real_idx = self.indices[image_idx]
+        
+        # [CACHE CHECK]
+        if self.last_image_idx == real_idx and self.cached_image is not None:
+            image = self.cached_image
+            label = self.cached_label
+        else:
+            image_name = self.filenames[real_idx]
             
-        image_name = self.filenames[real_idx]
-        image_path = os.path.join(Config.IMAGE_ROOT, image_name)
-        
-        image = cv2.imread(image_path) 
-        if image is None: raise FileNotFoundError(f"Image not found: {image_path}")
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        h_orig, w_orig = image.shape[:2]
-        h_target, w_target = self.parser.resize_shape 
-        
-        if (h_orig, w_orig) != (h_target, w_target):
-            image = cv2.resize(image, (w_target, h_target), interpolation=cv2.INTER_LINEAR)
-        
-        label_name = self.labelnames[real_idx]
-        label_path = os.path.join(Config.LABEL_ROOT, label_name)
-        
-        label_shape = (h_target, w_target, len(Config.CLASSES))
-        label = np.zeros(label_shape, dtype=np.uint8)
-        
-        with open(label_path, "r") as f:
-            annotations = json.load(f)["annotations"]
-        
-        scale_x = w_target / w_orig
-        scale_y = h_target / h_orig
-        
-        for ann in annotations:
-            c = ann["label"]
-            class_ind = Config.CLASS2IND[c]
-            points = np.array(ann["points"], dtype=np.float32)
-            points[:, 0] *= scale_x
-            points[:, 1] *= scale_y
-            points = points.astype(np.int32)
+            # JPEG Path
+            jpeg_name = os.path.splitext(image_name)[0] + ".jpg"
+            image_path = os.path.join(self.jpeg_root, jpeg_name)
             
-            class_label = np.zeros((h_target, w_target), dtype=np.uint8)
-            cv2.fillPoly(class_label, [points], 1)
-            label[..., class_ind] = class_label
+            # 1. JPEG Reading (원본 2048x2048)
+            image = cv2.imread(image_path)
+            if image is None: 
+                raise FileNotFoundError(f"JPEG not found: {image_path}")
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
-        # Apply CPU Transforms (CLAHE)
-        if self.parser.cpu_compose:
-            inputs = {"image": image, "mask": label}
-            result = self.parser.cpu_compose(**inputs)
-            image = result["image"]
-            label = result["mask"]
+            # 2. CLAHE 적용 (2048 크기에)
+            if self.parser.cpu_compose:
+                image = self.parser.cpu_compose(image=image)["image"]
+            
+            # 3. 마스크 생성 (2048x2048)
+            label_name = self.labelnames[real_idx]
+            label_path = os.path.join(Config.LABEL_ROOT, label_name)
+            label_shape = (2048, 2048, len(Config.CLASSES))
+            label = np.zeros(label_shape, dtype=np.uint8)
+            
+            with open(label_path, "r") as f:
+                annotations = json.load(f)["annotations"]
+            
+            for ann in annotations:
+                c = ann["label"]
+                class_ind = Config.CLASS2IND[c]
+                points = np.array(ann["points"], dtype=np.int32)
+                
+                class_label = np.zeros((2048, 2048), dtype=np.uint8)
+                cv2.fillPoly(class_label, [points], 1)
+                label[..., class_ind] = class_label
+            
+            # Update Cache
+            self.last_image_idx = real_idx
+            self.cached_image = image
+            self.cached_label = label
         
-        matrix = self.parser.get_affine_matrix(h_target, w_target)
+        # 4. 패치 좌표 계산 및 CPU에서 크롭 (고정 그리드)
+        patches_per_row = (2048 - self.window_size) // self.stride + 1
+        row = patch_idx // patches_per_row
+        col = patch_idx % patches_per_row
+        crop_y = row * self.stride
+        crop_x = col * self.stride
+        
+        # CPU에서 크롭 (1024x1024)
+        image_patch = image[crop_y:crop_y+self.window_size, crop_x:crop_x+self.window_size]
+        label_patch = label[crop_y:crop_y+self.window_size, crop_x:crop_x+self.window_size]
+        
+        # 5. Affine 행렬 (윈도우 크기 기준)
+        matrix = self.parser.get_affine_matrix(self.window_size, self.window_size)
 
-        return image, label, matrix
+        # Return: Image(1024x1024), Mask(1024x1024), Matrix
+        return image_patch, label_patch, matrix
     
     def shuffle(self):
         if self.is_train:
             random.shuffle(self.indices)
 
 # ============================================================
-# DALI Pipeline (GPU Acceleration)
+# DALI Pipeline (Sliding Window)
 # ============================================================
 class XRayDaliPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, external_source, py_num_workers=1):
@@ -224,8 +284,10 @@ class XRayDaliPipeline(Pipeline):
         )
         self.source = external_source
         self.parser = external_source.parser 
+        self.window_size = self.parser.window_size
         
     def define_graph(self):
+        # inputs: 0=Image(1024x1024), 1=Mask(1024x1024), 2=Matrix
         self.images, self.masks, self.matrices = fn.external_source(
             source=self.source, 
             num_outputs=3, 
@@ -235,11 +297,12 @@ class XRayDaliPipeline(Pipeline):
             prefetch_queue_depth=8 
         )
         
-        images = self.images.gpu()
-        masks = self.masks.gpu()
+        # Transfer to GPU
+        images = self.images.gpu() 
+        masks = self.masks.gpu() 
         matrices = self.matrices 
         
-        # GPU Affine (ShiftScaleRotate via matrix)
+        # GPU Affine (윈도우 크기에 적용)
         if self.parser.use_geometric:
              images = fn.warp_affine(images, matrix=matrices, interp_type=types.INTERP_LINEAR, fill_value=0)
              masks = fn.warp_affine(masks, matrix=matrices, interp_type=types.INTERP_NN, fill_value=0)
@@ -319,6 +382,9 @@ def get_dali_loader(is_train=True, batch_size=None):
     
     return DaliDataLoaderWrapper(pipe, source=e_source, batch_size=batch_size)
 
+# ============================================================
+# Inference Dataset (Sliding Window)
+# ============================================================
 class XRayInferenceDataset(Dataset):
     def __init__(self, transforms=None):
         self.image_root = Config.TEST_IMAGE_ROOT
@@ -329,18 +395,27 @@ class XRayInferenceDataset(Dataset):
             if os.path.splitext(fname)[1].lower() == ".png"
         ]))
         self.transforms = transforms
+        
+        # Sliding Window 설정
+        self.window_size = getattr(Config, 'WINDOW_SIZE', 1024)
+        self.stride = getattr(Config, 'STRIDE', 1024)
 
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, item):
+        """
+        슬라이딩 윈도우용: 원본 2048 이미지 반환
+        패치 분할은 inference 스크립트에서 처리
+        """
         image_name = self.filenames[item]
         image_path = os.path.join(self.image_root, image_name)
         
         image = cv2.imread(image_path)
         if image is None:
             raise FileNotFoundError(f"Image not found: {image_path}")
-            
+        
+        # 원본 2048 크기 유지, transform 적용 (CLAHE 등)
         if self.transforms is not None:
             result = self.transforms(image=image)
             image = result["image"]

@@ -69,10 +69,12 @@ def train():
 
     # 3. Dataset & Loader (REPLACED WITH DALI)
     print(f">> Initializing DALI DataLoaders from {Config.DATASET_FILE}...")
+    # 3. Dataset & Loader (REPLACED WITH DALI)
+    print(f">> Initializing DALI DataLoaders from {Config.DATASET_FILE}...")
     train_loader = get_dali_loader(is_train=True, batch_size=Config.BATCH_SIZE)
     valid_loader = get_dali_loader(is_train=False, batch_size=Config.BATCH_SIZE)
     print(">> DALI DataLoaders Ready.")
-
+    
     # 4. Model & Optimizer
     model = get_model().cuda()
 
@@ -148,6 +150,9 @@ def train():
     elif Config.LOSS_FUNCTION == 'Combined_GDL_BCE':
         criterion = CombinedLoss(GeneralizedDiceLoss(), nn.BCEWithLogitsLoss(), weights[0], weights[1])
 
+    elif Config.LOSS_FUNCTION == 'Tversky':
+        criterion = TverskyLoss(alpha=0.3, beta=0.7) # Alpha(FP), Beta(FN) -> Recall Emphasis
+
     elif Config.LOSS_FUNCTION == 'WeightedBCE':
         criterion = PixelWeightedBCE()
 
@@ -173,6 +178,10 @@ def train():
         # ==============================
         # Train Loop
         # ==============================
+        
+        # [Restored] Standard DALI Usage (No Re-init)
+        # We rely on the initial shuffle. This matches the fast 'kiwi5215' run.
+        
         model.train()
         train_losses = []
 
@@ -182,7 +191,7 @@ def train():
         
         pbar = tqdm(train_loader, desc=f"[Train] Epoch {epoch+1}")
         
-        for images, masks in pbar:
+        for batch_idx, (images, masks) in enumerate(pbar):
             # images, masks are already on GPU usually if DALI Pipeline outputs GPU tensors.
             # But the wrapper returns PyTorch tensors.
             # DALIWrapper output: image, mask (from our next() implementation).
@@ -196,6 +205,23 @@ def train():
             # Ensure they are correct type (Float)
             # DALI types.FLOAT used in pipeline, so good.
             
+            # [NEW] Manual Warmup Logic
+            if getattr(Config, 'USE_WARMUP', False) and epoch < getattr(Config, 'WARMUP_EPOCHS', 5):
+                warmup_epochs = Config.WARMUP_EPOCHS
+                warmup_min_lr = getattr(Config, 'WARMUP_MIN_LR', 1e-6)
+                target_lr = Config.LR
+                
+                # Global Step Calculation
+                total_warmup_steps = len(train_loader) * warmup_epochs
+                current_step = epoch * len(train_loader) + batch_idx  # batch_idx needed
+                
+                # Linear Interpolation
+                lr = warmup_min_lr + (target_lr - warmup_min_lr) * (current_step / total_warmup_steps)
+                
+                # Apply LR
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+            
             optimizer.zero_grad()
 
             with torch.amp.autocast(device_type="cuda"):
@@ -208,6 +234,11 @@ def train():
                 loss = criterion(outputs, masks)
 
             scaler.scale(loss).backward()
+            
+            # [Fix] Gradient Clipping for AMP Stability
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             scaler.step(optimizer)
             scaler.update()
 

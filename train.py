@@ -145,6 +145,12 @@ def train():
             weight_a=weights[0], 
             weight_b=weights[1]
         )
+
+    elif Config.LOSS_FUNCTION == 'Tversky':
+        criterion = TverskyLoss(alpha=0.3, beta=0.7)
+        
+    elif Config.LOSS_FUNCTION == 'GeneralizedDice':
+        criterion = GeneralizedDiceLoss()
         
     else:
         print("⚠️ Unknown Loss Function. Defaulting to BCE.")

@@ -13,6 +13,10 @@ class Config:
     MODEL_FILE = 'model.model_segformer'
     INFERENCE_FILE = 'inference.inference'
     
+    # [Sliding Window 설정]
+    WINDOW_SIZE = 1024  # 윈도우 크기
+    STRIDE = 1024       # 스트라이드 (2x2 패치)
+    
     # [2] 학습 환경
     DATA_ROOT = "/data/ephemeral/home/data" 
     IMAGE_ROOT = os.path.join(DATA_ROOT, "train/DCM")
@@ -37,16 +41,16 @@ class Config:
     SAVE_BEST_MODEL = True      # True: 최고 점수 갱신 시 저장 / False: 저장 안 함 (마지막 모델만 남음)
     # ========================================================
 
-    VAL_EVERY = 5               # 몇 Epoch마다 검증할지
+    VAL_EVERY = 1               # 몇 Epoch마다 검증할지
     WANDB_VIS_EVERY = 5
     
-    LR = 1e-4
+    LR = 5e-5
     RANDOM_SEED = 21
     OPTIMIZER = 'AdamW'
 
     # [NEW] Scheduler 설정
     # 옵션: 'ReduceLROnPlateau', 'StepLR', 'CosineAnnealingLR', 'None'
-    SCHEDULER = 'None' 
+    SCHEDULER = 'CosineAnnealingLR' 
     
     # 1. ReduceLROnPlateau 설정 (성능 향상 멈추면 줄이기 - 추천)
     SCHEDULER_PATIENCE = 2      # 성능 향상 없는 Epoch 수
@@ -58,7 +62,44 @@ class Config:
     SCHEDULER_GAMMA = 0.5       # 절반으로 줄임
     
     # 3. CosineAnnealingLR 설정 (부드럽게 줄였다 늘렸다 - 고급)
-    SCHEDULER_T_MAX = 50        # 보통 총 Epoch 수와 맞춤
+    SCHEDULER_T_MAX = 30        # 보통 총 Epoch 수와 맞춤
+
+    # [NEW] Warmup Scheduler 설정 (초반 발산 방지)
+    USE_WARMUP = True           # True: 사용 / False: 사용 안 함
+    WARMUP_EPOCHS = 5           # 초반 몇 Epoch 동안 Warmup 할지
+    WARMUP_MIN_LR = 1e-6        # Warmup 시작 LR (여기서부터 목표 LR까지 증가)
+    
+    # [TTA 설정] - inference_tta 사용 시 적용
+    TTA_MODE = '' # 'hflip', 'vflip', 'd4'
+    TTA_SCALES = [1.0] # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
+
+    # [앙상블 설정] - inference_ensemble 사용 시 적용
+    # 각 모델별로 TTA, Sliding 여부를 다르게 설정 가능
+    # 각 모델별로 어떤 추론 스크립트를 쓸지 지정 가능
+    ENSEMBLE_MODELS = [
+        # {
+        #    'path': "saved/WJH_023_hrnet/best_model.pt", 
+        #    'inference_file': 'inference.inference_tta',  # 사용할 스크립트 지정
+        #    'tta_mode': 'hflip', 
+        #    'scales': [1.0]
+        # },
+        # {
+        #    'path': "saved/WJH_024_hrnet_ocr/best_model.pt", 
+        #    'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+        #    'window_size': 1024,
+        #    'stride': 1024
+        # }
+    ]
+    # ENSEMBLE_STRATEGY removed (Managed by USE_OPTIMIZATION)
+    ENSEMBLE_USE_OPTIMIZATION = False # True: 최적 가중치 자동 탐색 (Weighted Search) / False: 수동 or 균등
+    
+    # [수동 가중치 설정] (USE_OPTIMIZATION = False 일 때 사용)
+    # 모델 개수만큼 리스트로 입력해주세요. (합이 1이 되도록 권장)
+    # 예: [0.7, 0.3] -> 첫 번째 모델에 70%, 두 번째에 30% 반영
+    # None으로 두면 자동으로 1/N (균등) 적용됩니다.
+    ENSEMBLE_WEIGHTS = None
+
+    # [Loss 선택지]
 
     # [Loss 선택지]
     # 1. 'BCE'               : 가장 기초. (지금 쓰고 계신 것)
@@ -66,7 +107,7 @@ class Config:
     # 3. 'Combined_BCE_Dice' : 학습 안정성 + 성능 밸런스형 (추천)
     # 4. 'Combined_Focal_Dice': 캐글 등 상위 랭커들이 가장 많이 쓰는 조합 (강력 추천)
     # util.py 참고
-    LOSS_FUNCTION = 'Dice'
+    LOSS_FUNCTION = 'Combined_Focal_Dice'
 
     # [비율 설정] (앞쪽 Loss, 뒤쪽 Loss)
     # 예: (0.5, 0.5) -> 반반 (기본값)

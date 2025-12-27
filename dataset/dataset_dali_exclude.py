@@ -1,4 +1,3 @@
-
 import os
 import cv2
 import json
@@ -16,6 +15,16 @@ from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 from config import Config
 
 # ============================================================
+# [EXCLUSION LIST]
+# ============================================================
+EXCLUDE_FILENAMES = [
+    "ID058/image1661392103627.png", # 왼손 라벨링 반대로
+    "ID325/image1664846270124.png", # 오른손 수근골 아래 라인 라벨링 오류
+    "ID363/image1664935962797.png", # 오른손 반지
+    "ID547/image1667353928376.png"  # 왼손 Ulna 위에 pisiform 라벨링 오류
+]
+
+# ============================================================
 # [SINGLE SOURCE OF TRUTH]
 # ============================================================
 def get_transforms(is_train=True):
@@ -26,7 +35,6 @@ def get_transforms(is_train=True):
             
             # CLAHE (CPU)
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
-            
             # SSR (Will be Parsed for GPU & Scaled down)
             A.ShiftScaleRotate(
                 shift_limit=0.05, 
@@ -35,7 +43,6 @@ def get_transforms(is_train=True):
                 p=0.5,              
                 border_mode=0       
             ),
-            
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ])
     else:
@@ -158,22 +165,35 @@ class XRayExternalSource:
         ys = [0 for fname in _filenames]
         gkf = GroupKFold(n_splits=5)
         
-        filenames = []
-        labelnames = []
+        self.filenames = []
+        self.labelnames = []
         val_fold = getattr(Config, 'VAL_FOLD', 4)
+
+        # [NEW] Exclude Logic
+        exclude_basenames = {os.path.basename(ex) for ex in EXCLUDE_FILENAMES}
 
         for i, (x, y) in enumerate(gkf.split(_filenames, ys, groups)):
             if (i == val_fold) ^ is_train:
-                filenames += list(_filenames[y])
-                labelnames += list(_labelnames[y])
+                for f, l in zip(_filenames[y], _labelnames[y]):
+                    fname_only = os.path.basename(f)
+                    
+                    # Check against exclusion list (Check basename)
+                    if fname_only in exclude_basenames:
+                        continue
+                        
+                    self.filenames.append(f)
+                    self.labelnames.append(l)
         
-        self.filenames = list(filenames)
-        self.labelnames = list(labelnames)
         self.n = len(self.filenames)
         
         self.indices = list(range(self.n))
         if is_train:
             random.shuffle(self.indices)
+
+        print(f"\n>>> [CHECK] Final Dataset Size (Exclude Version): {len(self.filenames)} images")
+        if is_train:
+            print(f">>> [CHECK] Excluded {len(_filenames[y]) - len(self.filenames)} images (approx) based on fold split")
+        
 
     def __len__(self):
         return self.n

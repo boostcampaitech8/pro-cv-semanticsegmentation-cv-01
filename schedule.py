@@ -5,29 +5,59 @@ import time
 # 🧪 실험 예약 리스트 (원하는 조합을 여기에 적으세요)
 # ====================================================
 experiments = [
-    # 실험 1: 전처리 비교 (CLAHE 적용)
+    # 1. Base: BCE + Dice (Standard)
     {
-        "exp_name": "Exp01_CLAHE_Base",
-        "dataset_file": "dataset.dataset_clahe",
-        "model_file": "model.model_unet",
+        "exp_name": "WJH_025_hrnet_w18_512_BCE_Dice",
+        "dataset_file": "dataset.dataset_dali_v1",
+        "model_file": "model.model_hrnet_w18",
         "loss": "Combined_BCE_Dice",
-        "epoch": 25
+        "epoch": 100,
+        "resize_size": 512,
+        "lr": 5e-5
     },
-    # 실험 2: 모델 변경 (SegFormer)
+    
+    # 2. Hard Mining: Focal + Dice (Ranker Choice)
     {
-        "exp_name": "Exp02_SegFormer_Focal",
-        "dataset_file": "dataset.dataset_clahe",
-        "model_file": "model.model_segformer",
+        "exp_name": "WJH_026_hrnet_w18_512_Focal_Dice",
+        "dataset_file": "dataset.dataset_dali_v1",
+        "model_file": "model.model_hrnet_w18",
         "loss": "Combined_Focal_Dice",
-        "epoch": 50
+        "epoch": 100,
+        "resize_size": 512,
+        "lr": 5e-5
     },
-    # 실험 3: LR 변경 테스트
+    
+    # 3. Recall Boost: Tversky (For small bone recall)
     {
-        "exp_name": "Exp03_UNet_LowLR",
-        "dataset_file": "dataset.dataset_clahe",
-        "model_file": "model.model_unet",
-        "lr": 1e-5,
-        "epoch": 25
+        "exp_name": "WJH_027_hrnet_w18_512_Tversky",
+        "dataset_file": "dataset.dataset_dali_v1",
+        "model_file": "model.model_hrnet_w18",
+        "loss": "Tversky",
+        "epoch": 100,
+        "resize_size": 512,
+        "lr": 5e-5
+    },
+    
+    # 4. Imbalance: Generalized Dice
+    {
+        "exp_name": "WJH_028_hrnet_w18_512_GeneralizedDice",
+        "dataset_file": "dataset.dataset_dali_v1",
+        "model_file": "model.model_hrnet_w18",
+        "loss": "GeneralizedDice",
+        "epoch": 100,
+        "resize_size": 512,
+        "lr": 5e-5
+    },
+    
+    # 5. Boundary: Pixel Weighted BCE
+    {
+        "exp_name": "WJH_029_hrnet_w18_512_WeightedBCE",
+        "dataset_file": "dataset.dataset_dali_v1",
+        "model_file": "model.model_hrnet_w18",
+        "loss": "WeightedBCE",
+        "epoch": 100,
+        "resize_size": 512,
+        "lr": 5e-5
     },
 ]
 
@@ -43,9 +73,15 @@ for i, exp in enumerate(experiments):
     # 딕셔너리에 있는 설정들을 인자로 변환 (--key value)
     for key, value in exp.items():
         cmd.append(f"--{key}")
-        cmd.append(str(value))
+        
+        # 리스트(예: [512, 1024])가 들어오면 풀어서 넣어줌
+        if isinstance(value, list) or isinstance(value, tuple):
+            for v in value:
+                cmd.append(str(v))
+        else:
+            cmd.append(str(value))
     
-    # 실행! (subprocess가 프로세스를 새로 띄워서 실행함 -> 메모리 초기화됨)
+    # 실행!
     try:
         subprocess.run(cmd, check=True)
         print(f"[Scheduler] {exp['exp_name']} 완료! 5초 뒤 다음 실험 시작...")

@@ -36,12 +36,13 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 │   └── Base_UNet/          # 방향 판별 모델 가중치 등
 ├── dataset/             # 데이터셋 로드 및 전처리 모듈
 │   ├── dataset.py          # 기본 데이터셋 로더
-│   ├── dataset_dali_v1.py  # [New] DALI + CPU SSR (안정성)
-│   ├── dataset_dali_v2.py  # [New] DALI + GPU SSR (자동 강도 보정)
+│   ├── dataset_dali_v1.py  # [New] DALI + Weak SSR (Scaled)
+│   ├── dataset_dali_v2.py  # [New] DALI + SSR (Unscaled)
 │   ├── dataset_crop.py     # BBox 기반 손 중심 크롭 (Hand-centered)
 │   ├── dataset_flip.py     # 모델 기반 손 방향 정규화 (Flip)
 │   ├── dataset_exclude.py  # Artifact(ID363, ID387) 제외 필터링
 │   └── ... (dataset_clahe, dataset_final 등 실험용 로더 다수)
+
 ├── eda/                 # 탐색적 데이터 분석 (EDA)
 │   ├── Crop_Hand_Forearm.ipynb # 손 vs 전완부 면적 및 크롭 전략 분석
 │   ├── Hand_Direction_Analysis.ipynb # 손 방향(왼손/오른손) 판별 분석
@@ -61,7 +62,10 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 ├── train_dali.py        # [New] NVIDIA DALI 기반 초고속 학습 엔진
 ├── run_exp.py           # [Unified] 통합 실행 스크립트 (DALI/PyTorch 자동 감지)
 ├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
-└── train.py             # 기존 PyTorch Learner
+├── train.py             # 기존 PyTorch Learner
+├── utils.py             # [Common] 시드 고정, RLE 인코딩, Custom Loss 함수 모음
+└── tools/               # 유틸리티 스크립트
+    └── preprocess_to_jpeg.py # [Fast] PNG -> JPEG 변환 (DALI v1/v2 필수)
 ```
 
 
@@ -96,7 +100,10 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 
 ### ⚡ 1. NVIDIA DALI 데이터 가속 (`train_dali.py`)
 - **병목 해결**: 2048x2048 고해상도 이미지의 디코딩 및 증강을 GPU에서 처리하여 학습 속도를 획기적으로 개선했습니다.
-- **주요 특징**: NVJPEG 기반 하드웨어 가속 디코딩, GPU 기반 실시간 Resize/Flip/Rotate 지원.
+- **버전별 특징**:
+    - **v1 (`dataset_dali_v1`)**: **Scaled SSR** 
+    - **v2 (`dataset_dali_v2`)**: **Unscaled SSR** 
+    - 공통: 두 버전 모두 **Hybrid JPEG Pipeline (CPU Resize -> CLAHE)** 을 적용하여 전송 병목 없이 초고속 학습이 가능합니다. (`tools/preprocess_to_jpeg.py`로 사전 변환 필요)
 
 ### 🍱 2. 데이터 전처리 전략 (Preprocessing)
 - **Image Resizing**: 고해상도 이미지를 모델 입력을 위해 512x512 또는 1024x1024 등으로 리사이즈하여 사용합니다.
@@ -112,35 +119,27 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 
 **주요 설정 항목:**
 - `MODEL_FILE`: 사용할 모델 (`model.model_nnunet`, `model.model_segformer` 등)
-- `DATASET_FILE`: 데이터셋 로더 (`dataset.dataset`, `dataset.dataset_dali`, `dataset.dataset_clahe` 등)
+- `DATASET_FILE`: 데이터셋 로더 선택
+    - 일반: `dataset.dataset`, `dataset.dataset_clahe` 등
+    - DALI: `dataset.dataset_dali_v1` (안정형), `dataset.dataset_dali_v2` (고속형)
 - `EXPERIMENT_NAME`: 실험 이름 (체크포인트 폴더명 및 WandB 로그명)
-- `BATCH_SIZE`: 배치 크기 (GPU 메모리에 따라 조정, 512x512 기준 8~16, 1024x1024 기준 2~4)
+- `BATCH_SIZE`: 배치 크기 (GPU 메모리에 따라 조정)
 - `NUM_EPOCHS`: 학습 에폭 수
-- `LR`: 학습률 (기본값: 1e-4)
-- `LOSS_FUNCTION`: 손실 함수 (`BCE`, `Dice`, `Focal`, `Combined_BCE_Dice` 등)
 
 **예시:**
 ```python
-MODEL_FILE = 'model.model_nnunet'
-DATASET_FILE = 'dataset.dataset_dali'  # DALI 사용 시
-EXPERIMENT_NAME = 'nnUNet_DALI_Run'
-BATCH_SIZE = 8
-NUM_EPOCHS = 100
+MODEL_FILE = 'model.model_unet'
+DATASET_FILE = 'dataset.dataset_dali_v2'  # DALI 고속 학습 사용 시
+EXPERIMENT_NAME = 'WJH_DALI_Run'
+BATCH_SIZE = 16
 ```
 
-### 2. 기본 학습 실행
-```bash
-# 학습만 진행할 경우
-python train.py
+### 2. 통합 학습 실행 (`run_exp.py`)
+데이터셋 설정(`Config.DATASET_FILE`)에 따라 **자동으로 일반 학습(`train.py`) 또는 DALI 학습(`train_dali.py`)으로 분기**됩니다.
 
+```bash
 # 학습부터 추론 결과 CSV 생성까지 자동 실행
-python run_exp.py --exp_name my_first_run --model_file model.model_nnunet
-```
-
-### 3. DALI 기반 고속 학습 실행
-```bash
-# 학습부터 추론 결과 CSV 생성까지 한 번에 실행 (GPU 가속 데이터 로딩)
-python run_exp_dali.py --exp_name dali_test --model_file model.model_nnunet
+python run_exp.py
 ```
 
 ### 4. 추론만 실행 (학습된 모델 사용)
