@@ -16,8 +16,11 @@ def set_seed(seed):
     random.seed(seed)
 
 def save_model(model, saved_dir, file_name="best_model.pt"):
+    # [Multi-GPU] Unwrap DataParallel/DDP before saving
+    model_to_save = model.module if hasattr(model, 'module') else model
+    
     output_path = os.path.join(saved_dir, file_name)
-    torch.save(model, output_path)
+    torch.save(model_to_save, output_path)
 
 def dice_coef(y_true, y_pred):
     y_true_f = y_true.flatten(2)

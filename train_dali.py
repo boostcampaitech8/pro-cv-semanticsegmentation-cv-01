@@ -1,19 +1,25 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from tqdm.auto import tqdm
 import os
 import warnings
+
+# ============================================================
+# [GPU Selection] torch import 전에 설정!
+# ============================================================
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"  # GPU 0,1 사용 (필요시 수정)
 
 # [Warning Suppression]
 os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
 warnings.filterwarnings("ignore", category=UserWarning, module="albumentations")
 warnings.filterwarnings("ignore", message="Please set `reader_name`")
+
 import importlib
 import numpy as np
 import gc
 import segmentation_models_pytorch as smp 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from tqdm.auto import tqdm
 
 # 벤치마크 모드
 torch.backends.cudnn.benchmark = True
@@ -77,6 +83,17 @@ def train():
     
     # 4. Model & Optimizer
     model = get_model().cuda()
+    # ============================================================
+    # [Multi-GPU] DataParallel Support
+    # ============================================================
+    num_gpus = torch.cuda.device_count()
+    if num_gpus > 1:
+        print(f">> Using {num_gpus} GPUs with DataParallel")
+        model = nn.DataParallel(model)
+    else:
+        print(f">> Using Single GPU")
+
+
 
     if Config.OPTIMIZER == 'Adam':
         optimizer = optim.Adam(model.parameters(), lr=Config.LR)
