@@ -88,32 +88,36 @@ class Config:
     # 각 모델별로 TTA, Sliding 여부를 다르게 설정 가능
     # 각 모델별로 어떤 추론 스크립트를 쓸지 지정 가능
     ENSEMBLE_MODELS = [
-        {
-            "path": "ensemble/best_model_hrnet.pt",
-            "inference_file": "inference.inference_sliding",  # 슬라이딩 윈도우 스크립트 지정
-            "dataset_file": "dataset.dataset_dali_sliding_exclude",
-            "window_size": 1024,
-            "stride": 512,
-        },
-        {
-            "path": "ensemble/best_model_deeplabv3.pt",
-            "inference_file": "inference.inference_sliding",  # 슬라이딩 윈도우 스크립트 지정
-            "dataset_file": "dataset.dataset_dali_sliding_exclude",
-            "window_size": 1024,
-            "stride": 1024,
-        },
-        {
-            "path": "ensemble/best_model_nnunet.pt",
-            "inference_file": "inference.inference",
-            "dataset_file": "dataset.dataset_dali_exclude",
-            "resize_size": (1024, 1024),
-        },
-        # {
-        #     'path': "ensemble/best_model_unetmit.pt",
-        #     'inference_file': 'inference.inference',
-        #     'dataset_file': 'dataset.dataset_dali_exclude',
-        #     'resize_size': (1024, 1024)
-        # },
+         {
+            'path': "ensemble/best_model_hrnet.pt", 
+            'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+            'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+            'window_size': 1024,
+            'stride': 512
+         },
+
+         {
+            'path': "ensemble/best_model_deeplabv3.pt", 
+            'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+            'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+            'window_size': 1024,
+            'stride': 1024
+         },
+
+         {
+            'path': "ensemble/best_model_nnunet.pt", 
+            'inference_file': 'inference.inference',
+            'dataset_file': 'dataset.dataset_dali_exclude',
+            'resize_size': (1024, 1024)
+         },
+
+         {
+             'path': "ensemble/best_model_unetmit.pt",
+             'inference_file': 'inference.inference',
+             'dataset_file': 'dataset.dataset_dali_exclude',
+             'resize_size': (1024, 1024)
+         },
+
         {
             "path": "ensemble/best_model_segformer.pt",
             "inference_file": "inference.inference",
@@ -137,6 +141,12 @@ class Config:
     # None으로 두면 자동으로 1/N (균등) 적용됩니다.
     ENSEMBLE_WEIGHTS = None
 
+    # [NEW] MAP Model
+    # 'best' : 최고 모델
+    # 'last' : 마지막 모델
+    # 'finetuned' : fine-tuned 모델
+    MAP_MODEL = 'best'
+    
     # [Loss 선택지]
 
     # [Loss 선택지]
@@ -205,4 +215,4 @@ class Config:
     CLASS2IND = {v: i for i, v in enumerate(CLASSES)}
     IND2CLASS = {v: k for k, v in CLASS2IND.items()}
     # Finetuning (train+val) : 체크포인트 불러와서 full dataset으로 학습 -> val 없으므로 ReduceLROnPlateau 불가. 다른 scheduler 사용.
-    # USE_FINETUNE = False
+    USE_FINETUNE = False

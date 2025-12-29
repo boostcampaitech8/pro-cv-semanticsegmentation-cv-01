@@ -75,12 +75,25 @@ def process_in_chunks(model, test_dataset, inference_module, output_dir, chunk_s
         
         try:
             # Prepare config dict
+<<<<<<< HEAD
             inference_cfg = {
                 'tta_mode': Config.TTA_MODE,
                 'scales': Config.TTA_SCALES,
                 'window_size': getattr(Config, 'WINDOW_SIZE', None),
                 'stride': getattr(Config, 'STRIDE', None),
             }
+=======
+            # Prepare config dict based on Module Type
+            inference_cfg = {}
+            inf_file = Config.INFERENCE_FILE
+            
+            if 'sliding' in inf_file:
+                inference_cfg['window_size'] = getattr(Config, 'WINDOW_SIZE', None)
+                inference_cfg['stride'] = getattr(Config, 'STRIDE', None)
+            elif 'tta' in inf_file:
+                inference_cfg['tta_mode'] = Config.TTA_MODE
+                inference_cfg['scales'] = Config.TTA_SCALES
+>>>>>>> Add bi_map and update generator script
             
             # get_probs 호출 (이 청크만)
             print("Running inference...")
