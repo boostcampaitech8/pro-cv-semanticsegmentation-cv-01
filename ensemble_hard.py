@@ -26,7 +26,7 @@ def ensemble_binary_maps(binary_map_dirs, output_dir="./", create_csv=True, vote
         vote_threshold = num_models // 2
     
     # 모델 이름 추출 (디렉토리 basename)
-    model_names = [Path(d).name for d in binary_map_dirs]
+    model_names = [Path(d).name[:7] for d in binary_map_dirs]
     
     # 첫 번째 디렉토리에서 파일 리스트 가져오기
     first_dir_files = sorted(glob(os.path.join(binary_map_dirs[0], "*.npz")))
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     binary_map_dirs = [
         "bi_map/KJE_014",
         "bi_map/WJH_037_hrnet_w48_1024_focal_dice_sw",
-        "bi_map/exp3",
+        "bi_map/KKM_010_deeplabv3_sliding",
     ]
     
     # 앙상블 실행
