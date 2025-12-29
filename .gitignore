@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints
+.DS_Store
+logs/
+checkpoints/
+wandb/
+check_folds.py
+find_best_scale.py
+submission_*.csv
+temp_ensemble_cache/
+ensemble/
