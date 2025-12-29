@@ -46,8 +46,10 @@ def get_probs(model, loader, save_dir=None, return_downsampled=None, **kwargs):
                 
                 # 1. Downsampled Return
                 if return_downsampled:
-                    small_prob = F.interpolate(output.unsqueeze(0).unsqueeze(0), size=(return_downsampled, return_downsampled), mode="bilinear", align_corners=False).squeeze()
-                    results[fname] = small_prob.cpu().numpy()
+                    # Resize
+                    small_prob = F.interpolate(output.unsqueeze(0), size=(return_downsampled, return_downsampled), mode="bilinear", align_corners=False).squeeze()
+                    # Optimize Memory: unit8
+                    results[fname] = (small_prob.cpu().numpy() * 255).astype(np.uint8)
                     
                 # 2. Disk Save (Float16)
                 elif save_dir:
@@ -63,6 +65,18 @@ def get_probs(model, loader, save_dir=None, return_downsampled=None, **kwargs):
                         results[f"{class_name}_{fname}"] = rle
                 
     return results
+
+def predict_one_image(model, image, **kwargs):
+    # Ensure image is on CUDA
+    image = image.cuda()
+    if image.dim() == 3: image = image.unsqueeze(0)
+    
+    with torch.amp.autocast(device_type="cuda"):
+        output = model(image)
+        if isinstance(output, dict): output = output['out']
+    
+    output = F.interpolate(output, size=(2048, 2048), mode="bilinear", align_corners=False)
+    return torch.sigmoid(output).squeeze(0) # Return Probs
 
 def test():
     try:

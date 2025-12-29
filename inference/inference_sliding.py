@@ -12,6 +12,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from config import Config
 from utils import encode_mask_to_rle
 
+def predict_one_image(model, image, window_size=None, stride=None, **kwargs):
+    # Adapter for uniform interface
+    if window_size is None: window_size = getattr(Config, 'WINDOW_SIZE', 1024)
+    if stride is None: stride = getattr(Config, 'STRIDE', 512)
+    
+    # Ensure image is on CUDA (Phase 2 passes CPU tensor)
+    image = image.cuda()
+    
+    return predict_sliding_image(model, image, window_size, stride)
+
 def predict_sliding_image(model, image, window_size, stride):
     # Core Sliding Logic
     # image: (C, H, W) Tensor on CUDA
@@ -30,9 +40,18 @@ def predict_sliding_image(model, image, window_size, stride):
         
     patches = torch.stack(patches) # (N, 3, W, W)
     
+    # Process in chunks to avoid OOM (e.g. 9 patches of 1024x1024 is too big)
+    chunk_size = 2 
+    outputs_list = []
+    
     with torch.amp.autocast(device_type="cuda"):
-        outputs = model(patches)
-        if isinstance(outputs, dict): outputs = outputs['out']
+        for i in range(0, patches.shape[0], chunk_size):
+            batch_patches = patches[i : i + chunk_size]
+            batch_out = model(batch_patches)
+            if isinstance(batch_out, dict): batch_out = batch_out['out']
+            outputs_list.append(batch_out)
+            
+    outputs = torch.cat(outputs_list, dim=0)
     
     # Keep as logits or probs? Probs is safer for accumulation
     pred_patches = torch.sigmoid(outputs) 
@@ -78,7 +97,8 @@ def get_probs(model, loader, save_dir=None, return_downsampled=None, window_size
                 if return_downsampled:
                     # Resize
                     small_prob = F.interpolate(prob.unsqueeze(0), size=(return_downsampled, return_downsampled), mode="bilinear", align_corners=False).squeeze(0)
-                    results[fname] = small_prob.cpu().numpy()
+                    # Optimization: Store as uint8 to save 4x RAM
+                    results[fname] = (small_prob.cpu().numpy() * 255).astype(np.uint8)
                     
                 # 2. Disk Save (Float16)
                 elif save_dir:

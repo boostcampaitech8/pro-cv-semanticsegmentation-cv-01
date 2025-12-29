@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    EXPERIMENT_NAME = "WJH_035_hrnet_w48_1024_focal_dice_exclude"
+    EXPERIMENT_NAME = "WJH_037_hrnet_w48_1024_focal_dice_sw"
     
     USE_WANDB = True             # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
@@ -9,13 +9,13 @@ class Config:
     WANDB_RUN_NAME = EXPERIMENT_NAME # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = 'dataset.dataset_dali_exclude'
+    DATASET_FILE = 'dataset.dataset_dali_sliding_exclude'
     MODEL_FILE = 'model.model_hrnet_w48'
-    INFERENCE_FILE = 'inference.inference_TTA'
+    INFERENCE_FILE = 'inference.inference_sliding'
     
     # [Sliding Window 설정]
     WINDOW_SIZE = 1024  # 윈도우 크기
-    STRIDE = 1024       # 스트라이드 (2x2 패치)
+    STRIDE = 512       # 스트라이드 (2x2 패치)
     
     # [2] 학습 환경
     DATA_ROOT = "../data" 
@@ -71,28 +71,57 @@ class Config:
     
     # [TTA 설정] - inference_tta 사용 시 적용
     TTA_MODE = '' # 'hflip', 'vflip', 'd4'
-    TTA_SCALES = [0.9, 1.0, 1.5] # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
+    TTA_SCALES = [0.8, 1.0, 1.5] # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
 
     # [앙상블 설정] - inference_ensemble 사용 시 적용
     # 각 모델별로 TTA, Sliding 여부를 다르게 설정 가능
     # 각 모델별로 어떤 추론 스크립트를 쓸지 지정 가능
     ENSEMBLE_MODELS = [
+         {
+            'path': "ensemble/best_model_hrnet.pt", 
+            'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+            'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+            'window_size': 1024,
+            'stride': 512
+         },
+
+         {
+            'path': "ensemble/best_model_deeplabv3.pt", 
+            'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+            'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+            'window_size': 1024,
+            'stride': 1024
+         },
+
+         {
+            'path': "ensemble/best_model_nnunet.pt", 
+            'inference_file': 'inference.inference',
+            'dataset_file': 'dataset.dataset_dali_exclude',
+            'resize_size': (1024, 1024)
+         },
+
         # {
-        #    'path': "saved/WJH_023_hrnet/best_model.pt", 
-        #    'inference_file': 'inference.inference_tta',  # 사용할 스크립트 지정
-        #    'tta_mode': 'hflip', 
-        #    'scales': [1.0]
+        #     'path': "ensemble/best_model_unetmit.pt",
+        #     'inference_file': 'inference.inference',
+        #     'dataset_file': 'dataset.dataset_dali_exclude',
+        #     'resize_size': (1024, 1024)
         # },
-        # {
-        #    'path': "saved/WJH_024_hrnet_ocr/best_model.pt", 
-        #    'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
-        #    'window_size': 1024,
-        #    'stride': 1024
-        # }
+
+        {
+            'path': "ensemble/best_model_segformer.pt", 
+            'inference_file': 'inference.inference',
+            'dataset_file': 'dataset.dataset_dali_exclude',
+            'resize_size': (1024, 1024)
+         }
     ]
     # ENSEMBLE_STRATEGY removed (Managed by USE_OPTIMIZATION)
-    ENSEMBLE_USE_OPTIMIZATION = False # True: 최적 가중치 자동 탐색 (Weighted Search) / False: 수동 or 균등
+    ENSEMBLE_USE_OPTIMIZATION = True     # True: 최적 가중치 자동 탐색 (Weighted Search) / False: 수동 or 균등
     
+    # [NEW] 가중치 최적화 방식
+    # 'global' : 모든 클래스에 동일한 가중치 적용 (기존 방식)
+    # 'class'  : 각 클래스별로 최적 가중치 따로 계산 (성능 더 좋음)
+    ENSEMBLE_WEIGHT_METHOD = 'global'
+
     # [수동 가중치 설정] (USE_OPTIMIZATION = False 일 때 사용)
     # 모델 개수만큼 리스트로 입력해주세요. (합이 1이 되도록 권장)
     # 예: [0.7, 0.3] -> 첫 번째 모델에 70%, 두 번째에 30% 반영
