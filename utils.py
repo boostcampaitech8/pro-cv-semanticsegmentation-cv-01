@@ -5,6 +5,7 @@ import numpy as np
 import random
 import os
 from config import Config
+import json
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -122,14 +123,100 @@ class PixelWeightedBCE(nn.Module):
         weighted_loss = bce_loss * weights
         return weighted_loss.mean()
 
-# 6. Combined Loss
+# 6. Overlap Penalty Loss
+class OverlapPenaltyLoss(nn.Module):
+    def __init__(self):
+        super(OverlapPenaltyLoss, self).__init__()
+        self.min_confidence = Config.OVERLAP_MIN_CONFIDENCE
+        self.overlap_pairs = self._load_from_json()
+        
+    def _load_from_json(self):
+        """JSON 파일에서 overlap pairs 로드 (평균 900px 이상만)"""
+        json_path = Config.OVERLAP_ANALYSIS_FILE
+        
+        # 파일 존재 확인
+        if not os.path.exists(json_path):
+            raise FileNotFoundError(f"❌ Overlap analysis file not found: {json_path}")
+        
+        # JSON 읽기
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        
+        # pairs 추출 (900px 이상만)
+        pairs = []
+        for pair_info in data['pairs']:
+            avg_pixels = pair_info['avg_overlap_pixels']
+            
+            # 평균 900픽셀 이상만 선택
+            if avg_pixels >= 900:
+                cls_a, cls_b = pair_info['classes']
+                pairs.append((cls_a, cls_b))
+        
+        if len(pairs) == 0:
+            raise ValueError("❌ No overlap pairs found with avg >= 900 pixels!")
+        
+        print(f"  (Filtered: avg_overlap_pixels >= 900)")
+        return pairs
+    
+    def forward(self, inputs, targets):
+        """
+        inputs: [B, 29, H, W] - logits
+        targets: [B, 29, H, W] - 0 or 1
+        """
+        inputs_sigmoid = torch.sigmoid(inputs)
+        total_penalty = 0.0
+        num_pairs_processed = 0
+        
+        for cls_a, cls_b in self.overlap_pairs:
+            # 겹치는 픽셀 마스크 생성
+            overlap_mask = (targets[:, cls_a] * targets[:, cls_b]) > 0.5
+            
+            # 겹치는 픽셀이 충분히 있는지 확인
+            if overlap_mask.sum() > 10:
+                # 두 클래스의 예측값 추출
+                pred_a = inputs_sigmoid[:, cls_a][overlap_mask]
+                pred_b = inputs_sigmoid[:, cls_b][overlap_mask]
+                
+                # 둘 중 더 낮은 값 (약한 쪽)
+                min_conf = torch.min(pred_a, pred_b)
+                
+                # min_confidence보다 낮으면 페널티
+                penalty = F.relu(self.min_confidence - min_conf).mean()
+                total_penalty += penalty
+                num_pairs_processed += 1
+        
+        # 평균 페널티 반환 (처리된 쌍이 있는 경우)
+        if num_pairs_processed > 0:
+            return total_penalty / num_pairs_processed
+        else:
+            return torch.tensor(0.0, device=inputs.device, requires_grad=True)
+
+
+# 7. Combined Loss
 class CombinedLoss(nn.Module):
-    def __init__(self, loss_a, loss_b, weight_a=Config.LOSS_WEIGHTS[0], weight_b=Config.LOSS_WEIGHTS[1]):
+    def __init__(self, loss_a, loss_b, loss_c=None, 
+                 weight_a=Config.LOSS_WEIGHTS[0], 
+                 weight_b=Config.LOSS_WEIGHTS[1], 
+                 weight_c=None):
         super(CombinedLoss, self).__init__()
         self.loss_a = loss_a
         self.loss_b = loss_b
+        self.loss_c = loss_c
         self.weight_a = weight_a
         self.weight_b = weight_b
         
+        # weight_c 처리
+        if len(Config.LOSS_WEIGHTS) > 2:
+            self.weight_c = Config.LOSS_WEIGHTS[2]
+        else:
+            self.weight_c = 1 - self.weight_a - self.weight_b 
+        
     def forward(self, inputs, targets):
-        return self.weight_a * self.loss_a(inputs, targets) + self.weight_b * self.loss_b(inputs, targets)
+        total_loss = self.weight_a * self.loss_a(inputs, targets) + \
+                     self.weight_b * self.loss_b(inputs, targets)
+        
+        # loss_c가 있으면 추가
+        if self.loss_c is not None:
+            total_loss += self.weight_c * self.loss_c(inputs, targets)
+        
+        return total_loss

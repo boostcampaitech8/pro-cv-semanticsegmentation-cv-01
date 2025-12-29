@@ -4,7 +4,7 @@ from config import Config
 def get_model():
     # mit_b2: SegFormer 전용 인코더 (b0~b5 중 b2가 가성비 좋음)
     model = smp.Segformer(
-        encoder_name="mit_b2",
+        encoder_name="mit_b4",
         encoder_weights="imagenet",
         in_channels=3,
         classes=len(Config.CLASSES)
