@@ -176,16 +176,30 @@ class XRayExternalSource:
         exclude_basenames = {os.path.basename(ex) for ex in EXCLUDE_FILENAMES}
 
         for i, (x, y) in enumerate(gkf.split(_filenames, ys, groups)):
-            if (i == val_fold) ^ is_train:
-                for f, l in zip(_filenames[y], _labelnames[y]):
-                    fname_only = os.path.basename(f)
-                    
-                    # Check against exclusion list (Check basename)
-                    if fname_only in exclude_basenames:
-                        continue
+            # Fine-tuning 모드: Train일 때 모든 fold 데이터 사용
+            if Config.USE_FINETUNE:
+                if is_train:  # Train+Val 합치기 (모든 fold)
+                    for f, l in zip(_filenames[y], _labelnames[y]):
+                        fname_only = os.path.basename(f)
                         
-                    self.filenames.append(f)
-                    self.labelnames.append(l)
+                        # Check against exclusion list
+                        if fname_only in exclude_basenames:
+                            continue
+                            
+                        self.filenames.append(f)
+                        self.labelnames.append(l)
+            else:
+                # 일반 학습 모드: Train/Val 분리
+                if (i == val_fold) ^ is_train:
+                    for f, l in zip(_filenames[y], _labelnames[y]):
+                        fname_only = os.path.basename(f)
+                        
+                        # Check against exclusion list
+                        if fname_only in exclude_basenames:
+                            continue
+                            
+                        self.filenames.append(f)
+                        self.labelnames.append(l)
         
         self.n = len(self.filenames)
         
@@ -289,7 +303,7 @@ class XRayDaliPipeline(Pipeline):
             dtype=[types.UINT8, types.UINT8, types.FLOAT],
             parallel=True,       
             batch=False,         
-            prefetch_queue_depth=8 
+            prefetch_queue_depth=1
         )
         
         # Transfer to GPU
@@ -362,6 +376,10 @@ class DaliDataLoaderWrapper:
 def get_dali_loader(is_train=True, batch_size=None):
     if batch_size is None:
         batch_size = Config.BATCH_SIZE
+
+    if Config.USE_FINETUNE and not is_train:
+        print("⚠️ Warning: USE_FINETUNE=True이지만 validation loader가 요청되었습니다.")
+        return None
         
     e_source = XRayExternalSource(is_train=is_train)
     

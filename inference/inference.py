@@ -81,26 +81,48 @@ def predict_one_image(model, image, **kwargs):
 def test():
     try:
         dataset_module = importlib.import_module(Config.DATASET_FILE)
-    except ModuleNotFoundError: return
+    except ModuleNotFoundError: 
+        return
     
     XRayInferenceDataset = dataset_module.XRayInferenceDataset
     get_transforms = dataset_module.get_transforms
     
-    model_path = os.path.join(Config.SAVED_DIR, "best_model.pt")
-    if not os.path.exists(model_path):
-        print(f"Model not found: {model_path}")
-        return
-        
-    print(f"Loading Model from {model_path}")
-    model = torch.load(model_path, map_location='cuda', weights_only=False)
+    # ============================================================
+    # [MODIFIED] Fine-tuning 지원: 모델 경로 자동 선택
+    # ============================================================
+    if Config.USE_FINETUNE:
+        model_filename = "finetuned_model.pt"
+        model_type = "Fine-tuned"
+    else:
+        model_filename = "best_model.pt"
+        model_type = "Best"
     
+    model_path = os.path.join(Config.SAVED_DIR, model_filename)
+    
+    # 파일 존재 확인
+    if not os.path.exists(model_path):
+        print(f"❌ {model_type} model not found: {model_path}")
+        if Config.USE_FINETUNE:
+            print("   Please run training with USE_FINETUNE=True first to create finetuned_model.pt")
+        else:
+            print("   Please run training with USE_FINETUNE=False first to create best_model.pt")
+        return
+    
+    # 모델 로딩
+    print(f">> Loading {model_type} Model from: {model_path}")
+    model = torch.load(model_path, map_location='cuda', weights_only=False)
+    print(f"✅ {model_type} model loaded successfully!")
+    
+    # Dataset & Loader
     test_dataset = XRayInferenceDataset(transforms=get_transforms(is_train=False))
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=4)
     
-    # Use modular function
+    # Inference
     results_dict = get_probs(model, test_loader)
     
-    # Save CSV
+    # ============================================================
+    # [MODIFIED] CSV 저장 - Fine-tuning 구분
+    # ============================================================
     sample_sub_path = "sample_submission.csv"
     if os.path.exists(sample_sub_path):
         sample_df = pd.read_csv(sample_sub_path)
@@ -109,13 +131,18 @@ def test():
             key = f"{row['class']}_{row['image_name']}"
             rle = results_dict.get(key, "")
             final_rles.append(rle)
-            
-        save_path = f"submission_{Config.EXPERIMENT_NAME}.csv"
+        
+        # Fine-tuning 모드에 따라 파일명 구분
+        if Config.USE_FINETUNE:
+            save_path = f"submission_{Config.EXPERIMENT_NAME}_finetune.csv"
+        else:
+            save_path = f"submission_{Config.EXPERIMENT_NAME}.csv"
+        
         sample_df['rle'] = final_rles
         sample_df.to_csv(save_path, index=False)
-        print(f"Saved: {save_path}")
+        print(f"✅ Saved: {save_path}")
     else:
-        print("sample_submission.csv not found.")
+        print("❌ sample_submission.csv not found.")
 
 if __name__ == '__main__':
     test()
