@@ -5,6 +5,7 @@ import importlib
 # 각 모듈에서 실행 함수 가져오기
 # [Modified] Dynamic Import based on Dataset Type
 from config import Config
+import subprocess  # 백그라운드 실행용
 
 def get_trainer():
     try:
@@ -54,6 +55,30 @@ def main():
 
     print(f"\nAll processes finished. Check submission_{Config.EXPERIMENT_NAME}.csv")
 
+def run_background(args_list):
+    """백그라운드 실행"""
+    exp_name = Config.EXPERIMENT_NAME
+    
+    log_dir = "log"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    log_file = os.path.join(log_dir, f"{exp_name}.log")
+    
+    cmd = ["nohup", "python", "run_exp.py"] + args_list
+    
+    with open(log_file, "w") as f:
+        process = subprocess.Popen(
+            cmd,
+            stdout=f,
+            stderr=subprocess.STDOUT,
+            start_new_session=True
+        )
+    print(f"=====Background Execution Started=====")
+    print(f" Experiment : {exp_name}")
+    print(f" PID        : {process.pid}")
+    print(f" Log File   : {log_file}")
+    
 # run_exp.py 하단 수정
 
 if __name__ == '__main__':
@@ -70,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=None)
     parser.add_argument('--epoch', type=int, default=None)
     parser.add_argument('--resize_size', type=int, nargs='+', default=None, help="Input one int (square) or two ints (H W)")
+    parser.add_argument('--bg', action='store_true', help="Run in background with nohup")
     
     args = parser.parse_args()
 
@@ -96,6 +122,10 @@ if __name__ == '__main__':
             Config.RESIZE_SIZE = tuple(args.resize_size)
         else:
             raise ValueError("resize_size는 숫자 1개 또는 2개만 입력 가능합니다.")
+    if args.bg:
+        args_without_bg = [arg for arg in sys.argv[1:] if arg != '--bg']
+        run_background(args_without_bg)
+        sys.exit(0)
 
     # 3. 메인 실행
     main()
