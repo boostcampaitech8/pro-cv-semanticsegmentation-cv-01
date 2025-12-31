@@ -12,7 +12,34 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from config import Config
 from utils import encode_mask_to_rle
 
-def get_probs(model, loader, save_dir=None, return_downsampled=None, **kwargs):
+def predict_one_image(model, image, **kwargs):
+    """
+    Predict on a single image tensor (C, H, W).
+    Returns: fused_prob (C, H, W) on GPU/CPU (Tensor)
+    """
+    # image: (C, H, W)
+    if image.dim() == 3:
+        image = image.unsqueeze(0)
+    
+    image = image.cuda()
+    
+    # Use config from kwargs if needed? Standard inference usually just forward pass
+    # model is already in eval mode
+    
+    with torch.amp.autocast(device_type="cuda"):
+        outputs = model(image)
+        if isinstance(outputs, dict): outputs = outputs['out']
+    
+    # Resize to Canoncial Size (2048)
+    outputs = F.interpolate(outputs, size=(2048, 2048), mode="bilinear", align_corners=False)
+    
+    # Sigmoid -> Probs
+    prob = torch.sigmoid(outputs)
+    
+    return prob.squeeze(0)
+
+
+def get_probs(model, loader, save_dir=None, return_downsampled=None, save_dtype='float16', **kwargs):
     """
     Standard inference capable of:
     1. Saving to Disk (for Ensemble Phase 2)
@@ -53,8 +80,13 @@ def get_probs(model, loader, save_dir=None, return_downsampled=None, **kwargs):
                     
                 # 2. Disk Save (Float16)
                 elif save_dir:
-                    prob_np = output.half().cpu().numpy()
-                    np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
+                    if save_dtype == 'uint8':
+                        # Optimize Memory: uint8 (0-255)
+                        prob_np = (output.cpu().numpy() * 255).astype(np.uint8)
+                        np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
+                    else:
+                        prob_np = output.half().cpu().numpy()
+                        np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
                     
                 # 3. Default: RLE Encoding (RAM Safe)
                 else:

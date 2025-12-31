@@ -45,29 +45,58 @@ def predict_one_image(model, image, tta_mode=None, tta_scales=None, **kwargs):
             scaled_images = image
         
         # 2. Augment
-        inputs = [scaled_images]
+        # 2. Augment & Inference (Sequential to avoid OOM)
+        # Instead of stacking all flips into one batch, process one by one
+        
+        transforms_list = [
+            ('identity', lambda x: x, lambda x: x),
+        ]
+        
         if 'hflip' in tta_mode:
-            inputs.append(torch.flip(scaled_images, dims=[3]))
+            transforms_list.append(
+                ('hflip', 
+                 lambda x: torch.flip(x, dims=[3]), 
+                 lambda x: torch.flip(x, dims=[3]))
+            )
         if 'vflip' in tta_mode:
-            inputs.append(torch.flip(scaled_images, dims=[2]))
+            transforms_list.append(
+                ('vflip', 
+                 lambda x: torch.flip(x, dims=[2]), 
+                 lambda x: torch.flip(x, dims=[2]))
+            )
+            
+        current_scale_sum = None
         
-        batch_inputs = torch.cat(inputs, dim=0) 
+        for t_name, forward_aug, backward_aug in transforms_list:
+            # Augment
+            aug_input = forward_aug(scaled_images)
+            
+            # Infer
+            with torch.amp.autocast(device_type="cuda"):
+                # Output might be dict or tensor
+                out = model(aug_input)
+                if isinstance(out, dict): out = out['out']
+                
+            # De-augment
+            out = backward_aug(out)
+            
+            # Accumulate (CPU to save VRAM)
+            out = out.cpu()
+            
+            if current_scale_sum is None:
+                current_scale_sum = out
+            else:
+                current_scale_sum += out
+                
+            # GC
+            del aug_input, out
+            torch.cuda.empty_cache()
+            
+        # Average over transforms
+        outputs = current_scale_sum / len(transforms_list) 
         
-        # 3. Inference
-        with torch.amp.autocast(device_type="cuda"):
-            outputs = model(batch_inputs)
-            if isinstance(outputs, dict): outputs = outputs['out']
-        
-        del batch_inputs, scaled_images, inputs
-        
-        # 4. De-augment
-        current_idx = 1
-        if 'hflip' in tta_mode:
-            outputs[current_idx] = torch.flip(outputs[current_idx], dims=[3])
-            current_idx += 1
-        if 'vflip' in tta_mode:
-            outputs[current_idx] = torch.flip(outputs[current_idx], dims=[2])
-            current_idx += 1
+        # 3. Restore Size (and move to correct accumulator)
+        # 'outputs' is (1, C, H, W) on CPU
             
         # 5. Restore Size & Move to CPU
         if scale != 1.0:
@@ -94,7 +123,7 @@ def predict_one_image(model, image, tta_mode=None, tta_scales=None, **kwargs):
         
     return torch.sigmoid(avg_logits.squeeze(0)) # Returns PROBABILITIES (C, 2048, 2048)
 
-def get_probs(model, loader, save_dir=None, return_downsampled=None, tta_mode=None, tta_scales=None):
+def get_probs(model, loader, save_dir=None, return_downsampled=None, tta_mode=None, tta_scales=None, save_dtype='float16', **kwargs):
     """
     Modular function for TTA Inference.
     
@@ -134,9 +163,15 @@ def get_probs(model, loader, save_dir=None, return_downsampled=None, tta_mode=No
                 
                 # 2. Disk Save (Float16 NPY)
                 elif save_dir:
-                    prob_full = avg_probs.half().cpu().numpy() # Float16
-                    save_path = os.path.join(save_dir, fname + ".npy")
-                    np.save(save_path, prob_full)
+                    if save_dtype == 'uint8':
+                        # Optimize Memory: uint8 (0-255)
+                        prob_full = (avg_probs.cpu().numpy() * 255).astype(np.uint8)
+                        save_path = os.path.join(save_dir, fname + ".npy")
+                        np.save(save_path, prob_full)
+                    else:
+                        prob_full = avg_probs.half().cpu().numpy() # Float16
+                        save_path = os.path.join(save_dir, fname + ".npy")
+                        np.save(save_path, prob_full)
                     
                 # 3. Default RLE Return (If not saving)
                 else:
