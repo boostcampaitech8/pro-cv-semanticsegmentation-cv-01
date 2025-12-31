@@ -69,7 +69,7 @@ def predict_sliding_image(model, image, window_size, stride):
     
     return full_mask
 
-def get_probs(model, loader, save_dir=None, return_downsampled=None, window_size=None, stride=None):
+def get_probs(model, loader, save_dir=None, return_downsampled=None, window_size=None, stride=None, save_dtype='float16', **kwargs):
     if window_size is None: window_size = getattr(Config, 'WINDOW_SIZE', 1024)
     if stride is None: stride = getattr(Config, 'STRIDE', 512)
     
@@ -95,15 +95,40 @@ def get_probs(model, loader, save_dir=None, return_downsampled=None, window_size
                 
                 # 1. Downsampled Return
                 if return_downsampled:
-                    # Resize
-                    small_prob = F.interpolate(prob.unsqueeze(0), size=(return_downsampled, return_downsampled), mode="bilinear", align_corners=False).squeeze(0)
-                    # Optimization: Store as uint8 to save 4x RAM
-                    results[fname] = (small_prob.cpu().numpy() * 255).astype(np.uint8)
-                    
-                # 2. Disk Save (Float16)
+                    # Resize to target size if needed
+                    if isinstance(return_downsampled, int):
+                        target_size = (return_downsampled, return_downsampled)
+                    else:
+                        target_size = return_downsampled
+                        
+                    if prob.shape[-2:] != target_size:
+                        small_prob = F.interpolate(prob.unsqueeze(0), size=target_size, mode="bilinear", align_corners=False).squeeze(0)
+                    else:
+                        small_prob = prob
+
+                    # [MODIFIED] Disk Save Strategy (OOM Fix)
+                    if save_dir:
+                        # If save_dir is present, save to disk and DO NOT return (save RAM)
+                        # Option to save as uint8 via an external flag or implicit assumption
+                        # Checking if 'small_prob' implies optimization usage
+                        
+                        # Assuming optimization mode wants uint8 to save disk space as well
+                        prob_np = (small_prob.cpu().numpy() * 255).astype(np.uint8)
+                        np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
+                        
+                    else:
+                        # Optimization: Store as uint8 to save 4x RAM
+                        results[fname] = (small_prob.cpu().numpy() * 255).astype(np.uint8)
+                        
+                # 2. Disk Save (Float16) - Only if NOT downsampled (Legacy mode)
                 elif save_dir:
-                    prob_np = prob.half().cpu().numpy()
-                    np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
+                    if save_dtype == 'uint8':
+                        # Optimize Memory: uint8 (0-255)
+                        prob_np = (prob.cpu().numpy() * 255).astype(np.uint8)
+                        np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
+                    else:
+                        prob_np = prob.half().cpu().numpy()
+                        np.save(os.path.join(save_dir, fname + ".npy"), prob_np)
                     
                 # 3. Default: RLE Encoding (RAM Safe)
                 else:
