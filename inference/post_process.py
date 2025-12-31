@@ -17,17 +17,20 @@ def apply_morphology(mask, kernel_size=3):
     closed = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
     return closed
 
-def apply_binary_dense_crf(prob_map, image, sxy=50, srgb=5, compat=10, n_iters=5):
+def apply_binary_dense_crf(prob_map, image, sxy=10, srgb=3, compat=6, n_iters=5):
     """
     Apply DenseCRF to a single channel probability map (Binary Classification).
     
-    prob_map: (H, W) float [0, 1] - Probability of foreground
-    image: (H, W, 3) uint8 - Original Image
-    
-    Returns:
-    refined_prob: (H, W) float [0, 1]
+    Settings optimized for X-Ray Bone Segmentation (Fine details, strict boundaries).
+    sxy: 10 (Moderate smoothing to clean jagged edges)
+    srgb: 3 (Sensitive to edge contrast)
+    compat: 6 (Moderate strength)
     """
     if dcrf is None:
+        return prob_map
+        
+    # Optimization: Skip if the mask is effectively empty
+    if prob_map.max() < 0.1:
         return prob_map
 
     H, W = prob_map.shape
@@ -57,13 +60,13 @@ def apply_binary_dense_crf(prob_map, image, sxy=50, srgb=5, compat=10, n_iters=5
     d.setUnaryEnergy(U)
 
     # Pairwise Gaussian (Spatial smoothness)
-    d.addPairwiseGaussian(sxy=3, compat=3, kernel=dcrf.DIAG_KERNEL,
+    d.addPairwiseGaussian(3, 3, kernel=dcrf.DIAG_KERNEL,
                           normalization=dcrf.NORMALIZE_SYMMETRIC)
 
     # Pairwise Bilateral (Appearance - edges)
     # sxy: spatial std (larger = longer range)
     # srgb: color std (smaller = sensitive to color diff)
-    d.addPairwiseBilateral(sxy=sxy, srgb=srgb, rgb=np.ascontiguousarray(image), compat=compat,
+    d.addPairwiseBilateral(sxy, srgb, np.ascontiguousarray(image), compat,
                            kernel=dcrf.DIAG_KERNEL,
                            normalization=dcrf.NORMALIZE_SYMMETRIC)
 
