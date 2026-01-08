@@ -15,6 +15,17 @@ from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 
 from config import Config
 
+
+# ============================================================
+# [EXCLUSION LIST]
+# ============================================================
+EXCLUDE_FILENAMES = [
+    "ID058/image1661392103627.png",  # 왼손 라벨링 반대로
+    "ID325/image1664846270124.png",  # 오른손 수근골 아래 라인 라벨링 오류
+    "ID363/image1664935962797.png",  # 오른손 반지
+    "ID547/image1667353928376.png"   # 왼손 Ulna 위에 pisiform 라벨링 오류
+]
+
 # ============================================================
 # [SINGLE SOURCE OF TRUTH]
 # ============================================================
@@ -161,6 +172,13 @@ class XRayExternalSource:
         filenames = []
         labelnames = []
         val_fold = getattr(Config, 'VAL_FOLD', 4)
+
+        # Exclude 설정 - config.USE_EXCLUDE로 제어
+        if Config.USE_EXCLUDE:
+            exclude_basenames = {os.path.basename(ex) for ex in EXCLUDE_FILENAMES}
+        else:
+            exclude_basenames = set()
+    
 
         for i, (x, y) in enumerate(gkf.split(_filenames, ys, groups)):
             if (i == val_fold) ^ is_train:

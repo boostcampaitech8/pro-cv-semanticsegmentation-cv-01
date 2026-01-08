@@ -13,6 +13,7 @@ class Config:
     DATASET_FILE = "dataset.dataset_dali_exclude"
     MODEL_FILE = "model.model_segformer"
     INFERENCE_FILE = "inference.inference"
+    USE_EXCLUDE = True  # 이상치 제거 여부
 
     # [Sliding Window 설정]
     WINDOW_SIZE = 1024  # 윈도우 크기
