@@ -2,21 +2,21 @@ import os
 
 
 class Config:
-    EXPERIMENT_NAME = "KJE_014"
+    EXPERIMENT_NAME = "WJH_073_ensemble_sliding_Gaussian"
 
-    USE_WANDB = False  # True: 사용 / False: 사용 안 함 (디버깅 등)
+    USE_WANDB = True  # True: 사용 / False: 사용 안 함 (디버깅 등)
     WANDB_ENTITY = "ckgqf1313-boostcamp"
     WANDB_PROJECT = "HandBoneSeg"  # 프로젝트 이름
     WANDB_RUN_NAME = EXPERIMENT_NAME  # 실험 이름을 Run 이름으로 사용
 
     # [1] 파일 선택
-    DATASET_FILE = "dataset.dataset_dali_exclude"
-    MODEL_FILE = "model.model_segformer"
-    INFERENCE_FILE = "inference.inference"
+    DATASET_FILE = "dataset.dataset_dali_sliding_exclude"
+    MODEL_FILE = "model.model_nnunet"
+    INFERENCE_FILE = "inference.inference_sliding"
 
     # [Sliding Window 설정]
     WINDOW_SIZE = 1024  # 윈도우 크기
-    STRIDE = 512  # 스트라이드 (2x2 패치)
+    STRIDE = 512 # 스트라이드 (2x2 패치)
 
     # [2] 학습 환경
     DATA_ROOT = "../data"
@@ -29,9 +29,9 @@ class Config:
         os.makedirs(SAVED_DIR)
 
     RESIZE_SIZE = (1024, 1024)  # DALI sliding에서는 무시됨 (원본 2048 유지)
-    BATCH_SIZE = 6
-    NUM_WORKERS = 4
-    NUM_EPOCHS = 50
+    BATCH_SIZE = 2
+    NUM_WORKERS = 2
+    NUM_EPOCHS = 100
 
     # =================================================================
     # [맵 생성 설정]
@@ -44,8 +44,8 @@ class Config:
     USE_EARLY_STOPPING = (
         True  # True: 성능 향상 없으면 조기 종료 / False: 무조건 끝까지 학습
     )
-    EARLY_STOPPING_PATIENCE = 4  # 몇 번 참을지
-    EARLY_STOPPING_MIN_DELTA = 0.0003  # 이만큼 올라야 오른걸로 치겠다
+    EARLY_STOPPING_PATIENCE = 5  # 몇 번 참을지
+    EARLY_STOPPING_MIN_DELTA = 0.0000  # 이만큼 올라야 오른걸로 치겠다
 
     SAVE_BEST_MODEL = (
         True  # True: 최고 점수 갱신 시 저장 / False: 저장 안 함 (마지막 모델만 남음)
@@ -55,7 +55,7 @@ class Config:
     VAL_EVERY = 1  # 몇 Epoch마다 검증할지
     WANDB_VIS_EVERY = 5
 
-    LR = 1e-5
+    LR = 8e-5
     RANDOM_SEED = 21
     OPTIMIZER = "AdamW"
 
@@ -73,67 +73,107 @@ class Config:
     SCHEDULER_GAMMA = 0.5  # 절반으로 줄임
 
     # 3. CosineAnnealingLR 설정 (부드럽게 줄였다 늘렸다 - 고급)
-    SCHEDULER_T_MAX = 30  # 보통 총 Epoch 수와 맞춤
+    SCHEDULER_T_MAX = 40  # 보통 총 Epoch 수와 맞춤
 
     # [NEW] Warmup Scheduler 설정 (초반 발산 방지)
-    USE_WARMUP = False  # True: 사용 / False: 사용 안 함
+    USE_WARMUP = True  # True: 사용 / False: 사용 안 함
     WARMUP_EPOCHS = 5  # 초반 몇 Epoch 동안 Warmup 할지
     WARMUP_MIN_LR = 1e-6  # Warmup 시작 LR (여기서부터 목표 LR까지 증가)
 
     # [TTA 설정] - inference_tta 사용 시 적용
-    TTA_MODE = ""  # 'hflip', 'vflip', 'd4'
-    TTA_SCALES = [0.8, 1.0, 1.5]  # [0.75, 1.0, 1.25] 등 멀티스케일 설정 가능
+    # [Optimized] Sigma=1.5, Scale=[1.0], Optimal Thresholds
+    TTA_MODE = "" 
+    TTA_SCALES = [1.0]
+    USE_SLIDING_WINDOW = True 
+    USE_GAUSSIAN_SLIDING = True 
+    GAUSSIAN_SIGMA = 0.3
+    USE_OPTIMAL_THRESHOLD = False
+
+    # [Optimized via tools/find_best_params.py]
+    OPTIMAL_THRESHOLDS = {
+        'finger-1': 0.30,
+        'finger-2': 0.40,
+        'finger-3': 0.45,
+        'finger-4': 0.35,
+        'finger-5': 0.30,
+        'finger-6': 0.30,
+        'finger-7': 0.45,
+        'finger-8': 0.35,
+        'finger-9': 0.30,
+        'finger-10': 0.35,
+        'finger-11': 0.50,
+        'finger-12': 0.30,
+        'finger-13': 0.35,
+        'finger-14': 0.40,
+        'finger-15': 0.45,
+        'finger-16': 0.55,
+        'finger-17': 0.55,
+        'finger-18': 0.50,
+        'finger-19': 0.45,
+        'Trapezium': 0.55,
+        'Trapezoid': 0.45,
+        'Capitate': 0.55,
+        'Hamate': 0.40,
+        'Scaphoid': 0.40,
+        'Lunate': 0.50,
+        'Triquetrum': 0.45,
+        'Pisiform': 0.40,
+        'Radius': 0.45,
+        'Ulna': 0.45,
+    }
 
     # [앙상블 설정] - inference_ensemble 사용 시 적용
     # 각 모델별로 TTA, Sliding 여부를 다르게 설정 가능
     # 각 모델별로 어떤 추론 스크립트를 쓸지 지정 가능
     ENSEMBLE_MODELS = [
+
          {
             'path': "ensemble/best_model_hrnet.pt", 
-            'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
+            'inference_file': 'inference.inference_tta', # TTA (w/ Sliding) 사용
             'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+            'resize_size': (2048, 2048),
             'window_size': 1024,
             'stride': 512
          },
 
-         {
-            'path': "ensemble/best_model_deeplabv3.pt", 
-            'inference_file': 'inference.inference_sliding', # 슬라이딩 윈도우 스크립트 지정
-            'dataset_file': 'dataset.dataset_dali_sliding_exclude',
-            'window_size': 1024,
-            'stride': 1024
-         },
+          {
+             'path': "ensemble/best_model_nnunet.pt", 
+             'inference_file': 'inference.inference_tta', # TTA (w/ Sliding) 사용
+             'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+             'resize_size': (2048, 2048),
+             'window_size': 1024,
+             'stride': 512
+          },
 
-         {
-            'path': "ensemble/best_model_nnunet.pt", 
-            'inference_file': 'inference.inference',
-            'dataset_file': 'dataset.dataset_dali_exclude',
-            'resize_size': (1024, 1024)
-         },
-
-         {
-             'path': "ensemble/best_model_unetmit.pt",
-             'inference_file': 'inference.inference',
-             'dataset_file': 'dataset.dataset_dali_exclude',
-             'resize_size': (1024, 1024)
-         },
-
-        {
-            "path": "ensemble/best_model_segformer.pt",
-            "inference_file": "inference.inference",
-            "dataset_file": "dataset.dataset_dali_exclude",
-            "resize_size": (1024, 1024),
-        },
+          {
+             'path': "ensemble/best_model_deeplabv3.pt", 
+             'inference_file': 'inference.inference_tta', # TTA (w/ Sliding) 사용
+             'dataset_file': 'dataset.dataset_dali_sliding_exclude',
+             'resize_size': (2048, 2048),
+             'window_size': 1024,
+             'stride': 512
+          },
     ]
     # ENSEMBLE_STRATEGY removed (Managed by USE_OPTIMIZATION)
     ENSEMBLE_USE_OPTIMIZATION = (
-        True  # True: 최적 가중치 자동 탐색 (Weighted Search) / False: 수동 or 균등
+        False  # True: 최적 가중치 자동 탐색 (Weighted Search) / False: 수동 or 균등
     )
+
 
     # [NEW] 가중치 최적화 방식
     # 'global' : 모든 클래스에 동일한 가중치 적용 (기존 방식)
     # 'class'  : 각 클래스별로 최적 가중치 따로 계산 (성능 더 좋음)
     ENSEMBLE_WEIGHT_METHOD = "global"
+
+    # [NEW] 최적화 기준 (Metric)
+    # 'soft' : Adam 사용. 미분 가능한 Soft Dice 최적화 (빠름, 일반적으로 권장)
+    # 'hard' : Nelder-Mead 사용. 실제 평가 지표인 Hard Dice(mDice) 직접 최적화 (느림, 정확도 중시)
+    ENSEMBLE_OPTIM_METRIC = "hard"
+
+    # [NEW] 최적화 해상도 (Resolution)
+    # 1024 : 메모리 절약 (기본) - 약간의 정확도 하락 감수
+    # 2048 : 원본 해상도 - 모델 2~3개 이하일 때 권장 (메모리 많이 씀)
+    ENSEMBLE_OPTIM_SIZE = 2048
 
     # [수동 가중치 설정] (USE_OPTIMIZATION = False 일 때 사용)
     # 모델 개수만큼 리스트로 입력해주세요. (합이 1이 되도록 권장)
@@ -156,7 +196,7 @@ class Config:
     # 4. 'Combined_Focal_Dice': 캐글 등 상위 랭커들이 가장 많이 쓰는 조합 (강력 추천)
     # 5. 'Combined_Focal_Dice_Overlap': Focal + Dice + Overlap Penalty
     # util.py 참고
-    LOSS_FUNCTION = "Combined_Focal_Dice_Overlap"
+    LOSS_FUNCTION = "Dice"
 
     # [비율 설정] (앞쪽 Loss, 뒤쪽 Loss)
     # 예: (0.5, 0.5) -> 반반 (기본값)
