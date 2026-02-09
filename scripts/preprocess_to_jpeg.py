@@ -1,12 +1,12 @@
-
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+
 import cv2
 import glob
+import numpy as np
+import multiprocessing
 from tqdm import tqdm
-import sys
-
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
 
 def main():

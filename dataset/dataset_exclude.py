@@ -14,7 +14,7 @@ def get_transforms(is_train=True):
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            # 여기에 Flip, Rotate 등 Augmentation 추가 가능
+            # 여기에 좌우 반전(Flip), 회전(Rotate) 등 추가적인 증강(Augmentation) 기법을 적용할 수 있습니다.
         ])
     else:
         return A.Compose([
@@ -30,26 +30,26 @@ class XRayDataset(Dataset):
         exclude_ids = ["ID363", "ID387"]  # 필요한 만큼 추가
 
         # =============================================================
-        # 2. 이미지 파일 로드 (수정됨: 전체 경로 검사)
+        # 2. 이미지 파일 로드 (전체 경로 검사)
         # =============================================================
         pngs = {
             os.path.relpath(os.path.join(root, fname), start=Config.IMAGE_ROOT)
             for root, _dirs, files in os.walk(Config.IMAGE_ROOT)
             for fname in files
             if os.path.splitext(fname)[1].lower() == ".png"
-            # [핵심 수정] fname(파일명)이 아니라 os.path.join(root, fname)(전체경로)를 검사해야 함
+            # 단순 파일명(fname)이 아닌 전체 경로(os.path.join(root, fname))를 기준으로 필터링해야 함
             and not any(ex_id in os.path.join(root, fname) for ex_id in exclude_ids)
         }
         
         # =============================================================
-        # 3. 라벨 파일 로드 (수정됨: 전체 경로 검사)
+        # 3. 라벨 파일 로드 (전체 경로 검사)
         # =============================================================
         jsons = {
             os.path.relpath(os.path.join(root, fname), start=Config.LABEL_ROOT)
             for root, _dirs, files in os.walk(Config.LABEL_ROOT)
             for fname in files
             if os.path.splitext(fname)[1].lower() == ".json"
-            # [핵심 수정] 여기도 마찬가지로 전체 경로(root + fname)에서 검사
+            # 전체 경로(root + fname)를 기준으로 검사 수행
             and not any(ex_id in os.path.join(root, fname) for ex_id in exclude_ids)
         }
         
@@ -115,9 +115,9 @@ class XRayDataset(Dataset):
             cv2.fillPoly(class_label, [points], 1)
             label[..., class_ind] = class_label
         
-        # [수정된 핵심 부분]
-        # Train/Valid 여부와 상관없이 항상 이미지와 마스크를 함께 Transform에 넘깁니다.
-        # 이렇게 해야 Valid 때도 마스크가 512x512로 리사이즈됩니다.
+        # 이미지와 마스크 변환 처리
+        # 학습(Train)/검증(Valid) 여부와 관계없이 이미지와 마스크를 함께 변환(Transform) 함수로 전달합니다.
+        # 이를 통해 검증 단계에서도 마스크가 512x512 등으로 올바르게 리사이즈됩니다.
         if self.transforms is not None:
             inputs = {"image": image, "mask": label}
             result = self.transforms(**inputs)

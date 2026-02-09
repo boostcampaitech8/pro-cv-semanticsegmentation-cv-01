@@ -13,13 +13,13 @@ def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            # [수정] A.Normalize 제거됨 (단순 0~255 값 유지)
+            # A.Normalize 제거됨 (단순 0~255 값 유지)
             # 여기에 Flip, Rotate 등 Augmentation 추가 가능
         ])
     else:
         return A.Compose([
             A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
-            # [수정] A.Normalize 제거됨
+            # A.Normalize 제거됨
         ])
 
 class XRayDataset(Dataset):
@@ -100,7 +100,7 @@ class XRayDataset(Dataset):
             image = result["image"]
             label = result["mask"]
 
-        # [핵심 수정] 0~255 이미지를 0~1로 스케일링
+        # 0~255 이미지를 0~1로 스케일링
         image = image.astype(np.float32) / 255.0
 
         image = image.transpose(2, 0, 1)
@@ -134,7 +134,7 @@ class XRayInferenceDataset(Dataset):
             result = self.transforms(image=image)
             image = result["image"]
 
-        # [핵심 수정] 0~255 이미지를 0~1로 스케일링
+        # 0~255 이미지를 0~1로 스케일링
         image = image.astype(np.float32) / 255.0
 
         image = image.transpose(2, 0, 1)

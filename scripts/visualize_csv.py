@@ -1,3 +1,4 @@
+```python
 import sys
 import os
 import pandas as pd
@@ -8,7 +9,7 @@ import argparse
 import random
 
 # Add project root to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 from config import Config
 from utils import decode_rle_to_mask
 

@@ -97,7 +97,7 @@ class XRayDataset(Dataset):
             cv2.fillPoly(class_label, [points], 1)
             label[..., class_ind] = class_label
         
-        # [수정된 핵심 부분]
+        # 이미지와 마스크 변환 처리
         # Train/Valid 여부와 상관없이 항상 이미지와 마스크를 함께 Transform에 넘깁니다.
         # 이렇게 해야 Valid 때도 마스크가 512x512로 리사이즈됩니다.
         if self.transforms is not None:

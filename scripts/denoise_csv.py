@@ -1,8 +1,14 @@
+```python
 import pandas as pd
 import numpy as np
-import cv2
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+import cv2 # cv2 is still used later in the code
 from tqdm import tqdm
-from utils import encode_mask_to_rle, decode_rle_to_mask # 기존 utils 활용
+from config import Config # Added as per instruction
+from utils import decode_rle_to_mask, encode_mask_to_rle # Swapped order as per instruction
+# Use existing utils
 
 def post_process_csv(input_csv, output_csv, threshold=400):
     df = pd.read_csv(input_csv)

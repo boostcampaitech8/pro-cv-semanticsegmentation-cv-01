@@ -4,7 +4,7 @@
 
 ---
 
-## � 환경 설정
+## 🛠 환경 설정
 
 ### 1. 필수 라이브러리 설치
 ```bash
@@ -27,102 +27,88 @@ pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda
 
 ---
 
-## �📁 디렉토리 구조 (Directory Structure)
+## 📂 디렉토리 구조 (Directory Structure)
 
 ```text
 .
-├── checkpoints/         # 모델 가중치 저장 및 관리
-│   └── Base_UNet/          # 방향 판별 모델 가중치 등
-├── dataset/             # 데이터셋 로드 및 전처리 모듈
-│   ├── dataset.py          # 기본 데이터셋 로더
-│   ├── dataset_dali_v1.py  # [New] DALI + Weak SSR (Scaled)
-│   ├── dataset_dali_v2.py  # [New] DALI + SSR (Unscaled)
-│   ├── dataset_crop.py     # BBox 기반 손 중심 크롭 (Hand-centered)
-│   ├── dataset_flip.py     # 모델 기반 손 방향 정규화 (Flip)
-│   ├── dataset_exclude.py  # Artifact(ID363, ID387) 제외 필터링
-│   └── ... (dataset_clahe, dataset_final 등 실험용 로더 다수)
-
-├── eda/                 # 탐색적 데이터 분석 (EDA)
-│   ├── Crop_Hand_Forearm.ipynb # 손 vs 전완부 면적 및 크롭 전략 분석
-│   ├── Hand_Direction_Analysis.ipynb # 손 방향(왼손/오른손) 판별 분석
-│   ├── EDA_Img_processing.ipynb # 이미지 전처리 및 정렬 분석
-│   ├── eda_meta.ipynb      # 환자 메타데이터 분석
-│   ├── fiftyone.ipynb      # Fiftyone을 활용한 데이터 시각화
-│   └── EDA.ipynb           # 기본 이미지 및 라벨 분석
-├── model/               # 모델 정의 (Architectures)
-│   ├── model_nnunet.py      # Main Model (Residual UNet)
-│   ├── model_segformer.py   # Transformer-based Architecture
-│   └── ... (UNet++, DeepLabV3+, MAnet, FCN 등 20+ 모델 지원)
-├── inference/           # 추론 및 결과 생성
-│   ├── inference.py        # 기본 추론 및 RLE 생성
-│   ├── inference_crop.py   # 크롭 기반 추론 및 마스크 원복 로직
-│   └── inference_flip.py   # 2단계 추론 (방향 판별 -> 정규화 -> 세그멘테이션)
-├── config.py            # [Control Center] 모든 실험 설정 및 하이퍼파라미터
-├── train_dali.py        # [New] NVIDIA DALI 기반 초고속 학습 엔진
-├── run_exp.py           # [Unified] 통합 실행 스크립트 (DALI/PyTorch 자동 감지)
-├── schedule.py          # [Scheduler] 다중 실험 예약 자동화
-├── train.py             # 기존 PyTorch Learner
-├── utils.py             # [Common] 시드 고정, RLE 인코딩, Custom Loss 함수 모음
-└── tools/               # 유틸리티 스크립트
-    └── preprocess_to_jpeg.py # [Fast] PNG -> JPEG 변환 (DALI v1/v2 필수)
+├── config.py            # [Control Center] 모든 실험 설정 및 하이퍼파라미터 중심 관리
+├── run_exp.py           # [Unified] 통합 실행 엔진 (CLI 인자 & 백그라운드 모드 지원)
+├── train.py             # 기본 PyTorch 학습 코어
+├── train_dali.py        # [High-Speed] NVIDIA DALI 기반 가속 학습 엔진
+├── utils.py             # [Common] 시드 고정, RLE 인코딩, Custom Loss (한글화 완료)
+│
+├── scripts/             # [Utility] 독립 실행형 스크립트 모음
+│   ├── schedule.py          # 실험 예약 자동화 (다중 실험 순차 실행)
+│   ├── ensemble_hard.py     # 앙상블 (Hard Voting) 도구
+│   ├── create_pbmap_bi.py   # 확률 맵 생성 및 바이너리 변환
+│   ├── denoise_csv.py       # CSV 결과 노이즈 제거 및 후처리
+│   ├── preprocess_to_jpeg.py # DALI 로딩용 JPEG 사전 변환 도구
+│   └── visualize_csv.py     # CSV 기반 예측 결과 시각화
+├── eda/                 # [Analysis] 데이터 분석 및 시각화 노트북 (Jupyter)
+├── dataset/             # 데이터셋 로더 및 전처리 모듈 (DALI/Sliding Window 등)
+├── model/               # 다양한 모델 정의 (nnUNet, SegFormer 등 20+ 지원)
+├── inference/           # 추론 파이프라인 및 TTA 설정
+├── data/                # 데이터 참조 파일 (sample_submission.csv 등)
+└── checkpoints/         # 모델 가중치 저장소
 ```
 
 ---
 
 ## 🚀 프로젝트 핵심 기능
 
-### ⚡ 1. NVIDIA DALI 데이터 가속 (`train_dali.py`)
-- **병목 해결**: 2048x2048 고해상도 이미지의 디코딩 및 증강을 GPU에서 처리하여 학습 속도를 획기적으로 개선했습니다.
-- **버전별 특징**:
-    - **v1 (`dataset_dali_v1`)**: **Scaled SSR** 
-    - **v2 (`dataset_dali_v2`)**: **Unscaled SSR** 
-    - 공통: 두 버전 모두 **Hybrid JPEG Pipeline (CPU Resize -> CLAHE)** 을 적용하여 전송 병목 없이 초고속 학습이 가능합니다. (`tools/preprocess_to_jpeg.py`로 사전 변환 필요)
+### ⚡ 1. 통합 실행 엔진 (`run_exp.py`)
+- **데이터셋 자동 감지**: 선택된 데이터셋 모듈에 따라 DALI 학습(`train_dali.py`) 또는 일반 학습(`train.py`)으로 자동 분기합니다.
+- **설정 우선순위**:
+    1. **CLI Arguments (최우선)**: `python run_exp.py --lr 1e-4`와 같이 실행 시 인자를 주면 `config.py` 내용을 덮어씁니다.
+    2. **Config File**: 중앙 제어 파일(`config.py`)의 설정값이 기본으로 사용됩니다.
+- **백그라운드 지원**: `--bg` 옵션을 통해 서버 연결이 끊겨도 `nohup` 기반으로 안전하게 학습을 지속할 수 있습니다.
 
-### 🍱 2. 데이터 전처리 전략 (Preprocessing)
-- **Image Resizing**: 고해상도 이미지를 모델 입력을 위해 512x512 또는 1024x1024 등으로 리사이즈하여 사용합니다.
-- **Contrast Enhancement (CLAHE)**: 뼈의 윤곽을 뚜렷하게 하기 위해 대비 제한 적응형 히스토그램 평활화(CLAHE)를 적용합니다.
-- **Standard Augmentation**: Albumentations 라이브러리를 활용하여 Flip, Rotate, Brightness/Contrast 조정 등 모델의 일반화 성능을 높이기 위한 기본적인 증강 기법을 적용합니다.
+### 🍱 2. NVIDIA DALI 기반 데이터 가속
+- 고해상도(2048x2048) 이미지의 디코딩 및 증강을 GPU에서 처리하여 병목을 제거했습니다.
+- **Hybrid JPEG Pipeline**: `scripts/preprocess_to_jpeg.py`를 통한 사전 변환과 CLAHE 연산을 결합하여 학습 효율을 극대화했습니다.
 
 ---
 
-## 🛠 사용 방법
+## 📖 사용 방법
 
 ### 1. 설정 변경 (`config.py`)
-중앙 제어 파일에서 모델, 데이터셋, 하이퍼파라미터를 설정합니다.
+중앙 관리 파일에서 모델, 데이터셋, 학습률 등을 설정합니다.
 
 **주요 설정 항목:**
 - `MODEL_FILE`: 사용할 모델 (`model.model_nnunet`, `model.model_segformer` 등)
 - `DATASET_FILE`: 데이터셋 로더 선택
-    - 일반: `dataset.dataset`, `dataset.dataset_clahe` 등
-    - DALI: `dataset.dataset_dali_v1` (안정형), `dataset.dataset_dali_v2` (고속형)
 - `EXPERIMENT_NAME`: 실험 이름 (체크포인트 폴더명 및 WandB 로그명)
-- `BATCH_SIZE`: 배치 크기 (GPU 메모리에 따라 조정)
+- `BATCH_SIZE`: 배치 크기
 - `NUM_EPOCHS`: 학습 에폭 수
 
 **예시:**
 ```python
 MODEL_FILE = 'model.model_unet'
-DATASET_FILE = 'dataset.dataset_dali_v2'  # DALI 고속 학습 사용 시
-EXPERIMENT_NAME = 'WJH_DALI_Run'
-BATCH_SIZE = 16
+DATASET_FILE = 'dataset.dataset_dali_sliding_exclude' 
+EXPERIMENT_NAME = 'My_First_Experiment'
+BATCH_SIZE = 4
 ```
 
-### 2. 통합 학습 실행 (`run_exp.py`)
-데이터셋 설정(`Config.DATASET_FILE`)에 따라 **자동으로 일반 학습(`train.py`) 또는 DALI 학습(`train_dali.py`)으로 분기**됩니다.
-
+### 2. 학습 및 추론 실행
 ```bash
-# 학습부터 추론 결과 CSV 생성까지 자동 실행
+# 기본 실행 (config.py 설정 직접 반영)
 python run_exp.py
+
+# CLI 인자로 특정 설정만 바꿔서 실행 (가장 추천하는 방식)
+python run_exp.py --exp_name New_Trial --epoch 50 --lr 0.0001 --batch_size 4
+
+# 백그라운드에서 실행 (자체 --bg 옵션 사용)
+python run_exp.py --exp_name My_Trial --bg
 ```
 
-### 4. 추론만 실행 (학습된 모델 사용)
+### 3. 추론만 실행 (학습된 모델 사용)
 ```bash
-# 기본 추론
+# 기본 추론 (설정된 Config에 따라 실행)
 python inference/inference.py
 ```
 
-### 5. 백그라운드 실행 및 로그 저장 (Linux 명령어)
-서버 접속이 끊겨도 학습이 유지되도록 하고, 모든 로그를 파일로 남기는 권장 방법입니다.
+### 4. 백그라운드 실행 및 로그 관리 (Advanced)
+Linux 환경에서 직접 백그라운드로 실행하고 로그를 관리하는 방법입니다.
 ```bash
 # nohup을 이용한 백그라운드 실행 (Config의 실험명 + 날짜/시간 사용)
 EXP_NAME=$(python3 -c 'from config import Config; print(Config.EXPERIMENT_NAME)') && \
@@ -132,12 +118,21 @@ nohup python run_exp.py > ${EXP_NAME}_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 tail -f $(ls -t *.log | head -n 1)
 ```
 
-### 6. 다중 실험 자동화 (`schedule.py`)
-여러 실험을 예약하여 순차적으로 실행할 수 있습니다.
-1. `schedule.py` 파일 내 `experiments` 리스트에 실험 설정 추가
+### 5. 다중 실험 자동화 (`scripts/schedule.py`)
+여러 실험을 예약 리스트에 등록한 후 순차적으로 자동 실행합니다.
+1. `scripts/schedule.py` 파일 내 `experiments` 리스트에 실험 설정 추가
 2. 스크립트 실행:
 ```bash
-python schedule.py
+python scripts/schedule.py
+```
+
+### 6. 결과 시각화 및 후처리
+```bash
+# 앙상블 결과 시각화
+python scripts/visualize_csv.py --csv path/to/result.csv
+
+# 결과 노이즈 제거 처리
+python scripts/denoise_csv.py --input path/to/in.csv --output path/to/out.csv
 ```
 
 ---

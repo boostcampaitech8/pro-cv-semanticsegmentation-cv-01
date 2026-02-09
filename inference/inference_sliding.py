@@ -164,7 +164,7 @@ def test():
     # Save CSV
 
     # ... Save CSV ...
-    sample_sub_path = "sample_submission.csv"
+    sample_sub_path = "data/sample_submission.csv"
     if os.path.exists(sample_sub_path):
         sample_df = pd.read_csv(sample_sub_path)
         final_rles = []

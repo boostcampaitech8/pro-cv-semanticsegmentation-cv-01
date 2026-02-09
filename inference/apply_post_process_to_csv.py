@@ -147,11 +147,11 @@ def process_csv(csv_path, save_path, image_root):
 
 if __name__ == "__main__":
     # =========================================================
-    # [사용자 설정] 아래 경로를 직접 수정하세요
-    # =========================================================
-    INPUT_CSV = "outputs/WJH_054_ensemble3.csv"   # 처리할 CSV 파일 경로
-    OUTPUT_CSV = "outputs/WJH_058_ensemble3_post_dcrf.csv" # 저장할 CSV 파일 경로
-    IMAGE_ROOT = Config.TEST_IMAGE_ROOT          # 테스트 이미지 폴더 (보통 수정 불필요)
+    # [사용자 설정] 아래 경로를 본인의 환경에 맞게 설정하세요
+    INPUT_CSV = "submission_WJH_073_ensemble_sliding_Gaussian.csv" # 입력 CSV (앙상블 결과 등)
+    OUTPUT_CSV = "submission_postprocessed.csv"                 # 저장될 경로
+    
+    IMAGE_ROOT = Config.TEST_IMAGE_ROOT          # 테스트 이미지 폴더
     # =========================================================
 
     print(f">> Input: {INPUT_CSV}")

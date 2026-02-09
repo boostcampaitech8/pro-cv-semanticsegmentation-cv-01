@@ -16,8 +16,8 @@ from nvidia.dali.plugin.pytorch import DALIGenericIterator, LastBatchPolicy
 from config import Config
 
 # ============================================================
-# [SLIDING WINDOW VERSION]
-# 1024x1024 window, stride=1024 (2x2 patches)
+# [슬라이딩 윈도우 버전]
+# 1024x1024 윈도우 크기, 스트라이드 1024 (2x2 패치 구성)
 # ============================================================
 
 def get_transforms(is_train=True):
@@ -27,13 +27,13 @@ def get_transforms(is_train=True):
     """
     if is_train:
         return A.Compose([
-            # Resize 제거! 원본 2048 유지
+            # 리사이즈 제거: 원본 해상도(2048)를 그대로 유지합니다.
             # A.Resize(Config.RESIZE_SIZE[0], Config.RESIZE_SIZE[1]),
             
-            # CLAHE (CPU)
-            A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
+            # CLAHE 적용 (CPU 기반)
+            A.CLAHE(clip_limit=Config.CLAHE_CLIP_LIMIT, tile_grid_size=Config.CLAHE_TILE_GRID_SIZE, p=1.0),
             
-            # SSR은 GPU에서 처리 (DALI)
+            # SSR(Shift, Scale, Rotate) 등은 DALI를 통해 GPU에서 처리됩니다.
             A.ShiftScaleRotate(
                 shift_limit=0.05, 
                 scale_limit=0.05,
@@ -46,24 +46,24 @@ def get_transforms(is_train=True):
         ])
     else:
         return A.Compose([
-            # Resize 제거!
+            # 리사이즈 제거!
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ])
 
 # ============================================================
-# [LOGIC] Parse get_transforms
+# [로직] get_transforms 파싱
 # ============================================================
 class DaliTransformParser:
     def __init__(self, is_train=True):
         self.is_train = is_train
         transforms = get_transforms(is_train)
         
-        # Sliding Window 설정
+        # 슬라이딩 윈도우 설정: Config에서 윈도우 크기와 스트라이드 값을 가져옵니다.
         self.window_size = getattr(Config, 'WINDOW_SIZE', 1024)
         self.stride = getattr(Config, 'STRIDE', 1024)
         
-        # Defaults
+        # 기본값 설정
         self.mean = [0.485 * 255, 0.456 * 255, 0.406 * 255]
         self.std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
         self.cpu_transforms = []
@@ -104,7 +104,7 @@ class DaliTransformParser:
                 elif isinstance(t, (A.Compose, A.OneOf)):
                     pass 
                 else:
-                    # e.g. CLAHE
+                    # 예: CLAHE
                     self.cpu_transforms.append(t)
         
         self.cpu_compose = A.Compose(self.cpu_transforms) if self.cpu_transforms else None
@@ -127,14 +127,14 @@ class DaliTransformParser:
         return matrix
 
 # ============================================================
-# External Source (Sliding Window)
+# 외부 소스 (슬라이딩 윈도우 방식)
 # ============================================================
 class XRayExternalSource:
     def __init__(self, is_train=True):
         self.is_train = is_train
         self.parser = DaliTransformParser(is_train)
         
-        # Determine JPEG Root
+        # JPEG Root 경로 설정
         self.jpeg_root = Config.IMAGE_ROOT.rstrip('/') + "_jpeg"
         if not os.path.exists(self.jpeg_root):
              raise FileNotFoundError(f"JPEG Root not found: {self.jpeg_root}. Run tools/preprocess_to_jpeg.py first.")
@@ -171,11 +171,11 @@ class XRayExternalSource:
         self.filenames = list(filenames)
         self.labelnames = list(labelnames)
         
-        # Sliding Window: 각 이미지를 4개 패치로 확장 (2x2)
+        # 슬라이딩 윈도우: 각 원본 이미지를 4개의 패치로 분할하여 확장합니다 (2x2 구성).
+        # 스트라이드 1024 기준: (2048-1024)//1024 + 1 = 2개 → 가로세로 조합 시 총 4개 패치 생성
         self.window_size = self.parser.window_size
         self.stride = self.parser.stride
         self.patches_per_image = ((2048 - self.window_size) // self.stride + 1) ** 2
-        # stride=1024 → (2048-1024)//1024 + 1 = 2 → 2x2 = 4 patches
         
         self.n = len(self.filenames) * self.patches_per_image
         
@@ -185,7 +185,7 @@ class XRayExternalSource:
         if is_train:
             random.shuffle(self.indices)
             
-        # [CACHE]
+        # [캐시] 이미지와 라벨을 캐시하여 중복 로딩을 방지합니다.
         self.last_image_idx = -1
         self.cached_image = None
         self.cached_label = None
@@ -198,30 +198,30 @@ class XRayExternalSource:
         if idx_in_epoch >= self.n: 
             idx_in_epoch %= self.n
         
-        # 어느 이미지의 몇 번째 패치인지 계산
+        # 현재 인덱스가 어떤 이미지의 몇 번째 패치에 해당하는지 계산합니다.
         image_idx = idx_in_epoch // self.patches_per_image
         patch_idx = idx_in_epoch % self.patches_per_image
         
         real_idx = self.indices[image_idx]
         
-        # [CACHE CHECK]
+        # [캐시 확인] 이전에 로드된 이미지와 동일한 경우 캐시된 데이터를 사용합니다.
         if self.last_image_idx == real_idx and self.cached_image is not None:
             image = self.cached_image
             label = self.cached_label
         else:
             image_name = self.filenames[real_idx]
             
-            # JPEG Path
+            # JPEG 파일 경로
             jpeg_name = os.path.splitext(image_name)[0] + ".jpg"
             image_path = os.path.join(self.jpeg_root, jpeg_name)
             
-            # 1. JPEG Reading (원본 2048x2048)
+            # 1. JPEG 이미지 로드 (원본 2048x2048 해상도)
             image = cv2.imread(image_path)
             if image is None: 
                 raise FileNotFoundError(f"JPEG not found: {image_path}")
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
-            # 2. CLAHE 적용 (2048 크기에)
+            # 2. CLAHE 적용 (2048 크기 이미지에 적용)
             if self.parser.cpu_compose:
                 image = self.parser.cpu_compose(image=image)["image"]
             

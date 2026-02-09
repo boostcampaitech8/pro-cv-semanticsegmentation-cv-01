@@ -16,9 +16,9 @@ from config import Config
 def get_transforms(is_train=True):
     if is_train:
         return A.Compose([
-            # 🔥 [핵심] 100% 확률(p=1.0)로 둘 중 하나를 실행 -> 결과물은 무조건 512x512
+            # 100% 확률(p=1.0)로 둘 중 하나를 실행 -> 결과물은 무조건 512x512
 
-            # 🔥 [수정] Valid(Resize 후 CLAHE)와 분포를 맞추기 위해 Grid Size를 키움 (32x32)
+            # Valid(Resize 후 CLAHE)와 분포를 맞추기 위해 Grid Size를 키움 (32x32)
             # 원본(2048)에서 32등분 -> 약 64px (Valid 512에서 8등분 -> 64px)
             A.CLAHE(clip_limit=2.0, tile_grid_size=(32, 32), p=1.0),
             A.OneOf([
@@ -137,7 +137,7 @@ class XRayDataset(Dataset):
             image = result["image"] # 얘는 ToTensorV2 덕분에 이미 (3, 512, 512)
             mask = result["mask"]   # 얘는 아직 (512, 512, 29) 상태임!
 
-        # 🔥 [수정] 마스크를 (H, W, C) -> (C, H, W)로 바꿔줘야 함
+        # 마스크를 (H, W, C) -> (C, H, W)로 변환
         # mask가 텐서라면 .permute, numpy라면 .transpose를 써야 하는데
         # ToTensorV2를 거쳤으면 텐서일 확률이 높지만, 안전하게 처리합니다.
         

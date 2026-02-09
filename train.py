@@ -320,7 +320,7 @@ def train():
         # Config에서 값 가져오기 (없으면 기본값 0.0)
         min_delta = getattr(Config, 'EARLY_STOPPING_MIN_DELTA', 0.0)
         
-        # [핵심 수정] (기존 점수 + 최소 변화량)보다 커야 갱신으로 인정!
+        # (기존 점수 + 최소 변화량)보다 커야 갱신으로 인정!
         if val_dice > (best_dice + min_delta):
             print(f"🔥 Best Dice Updated: {best_dice:.4f} → {val_dice:.4f} (Delta: {val_dice - best_dice:.4f})")
             best_dice = val_dice

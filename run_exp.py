@@ -3,7 +3,7 @@ import os
 import importlib
 
 # 각 모듈에서 실행 함수 가져오기
-# [Modified] Dynamic Import based on Dataset Type
+# 데이터셋 종류에 따른 동적 임포트 처리
 from config import Config
 import subprocess  # 백그라운드 실행용
 
@@ -31,7 +31,7 @@ def main():
     # # 1. 학습 시작
     print("\n>>> [Stage 1] Start Training...")
     try:
-        train_func = get_trainer() # [Modified]
+        train_func = get_trainer()
         train_func() 
         print(">>> [Stage 1] Training Completed Successfully.")
     except Exception as e:
@@ -79,7 +79,7 @@ def run_background(args_list):
     print(f" PID        : {process.pid}")
     print(f" Log File   : {log_file}")
     
-# run_exp.py 하단 수정
+# 메인 실행부
 
 if __name__ == '__main__':
     import argparse

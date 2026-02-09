@@ -1,15 +1,19 @@
+```python
 import torch
 import numpy as np
 import os
 import importlib
 import shutil
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+import cv2
 from torch.utils.data import DataLoader, Subset
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 from config import Config
 
 def load_model(map_model):
-    """MAP_MODEL 설정에 따라 모델 로드"""
+    """MAP_MODEL 설정에 따라 모델을 로드합니다."""
     model_files = {
         'best': 'best_model.pt',
         'last': 'final_model.pt',

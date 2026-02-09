@@ -110,7 +110,7 @@ def test():
 
     # 4. 결과 저장
     print("Finalizing Submission...")
-    sample_sub_path = "sample_submission.csv"
+    sample_sub_path = "data/sample_submission.csv"
     if os.path.exists(sample_sub_path):
         sample_df = pd.read_csv(sample_sub_path)
         final_rles = [results_dict.get(f"{row['class']}_{row['image_name']}", "") for _, row in sample_df.iterrows()]

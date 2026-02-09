@@ -1,5 +1,10 @@
 import subprocess
 import time
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+
+from config import Config
 
 # ====================================================
 # 🧪 실험 예약 리스트

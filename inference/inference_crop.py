@@ -137,7 +137,7 @@ def test():
 
     # 4. Matching with sample_submission.csv
     print("Post-processing and Matching with sample_submission.csv...")
-    sample_sub_path = "sample_submission.csv"
+    sample_sub_path = "data/sample_submission.csv"
     
     if os.path.exists(sample_sub_path):
         sample_df = pd.read_csv(sample_sub_path)

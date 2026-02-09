@@ -16,7 +16,7 @@ def get_transforms(is_train=True):
             A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=1.0),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             
-            # 여기에 Flip, Rotate 등 Augmentation 추가 가능
+            # 여기에 좌우 반전(Flip), 회전(Rotate) 등 추가적인 증강(Augmentation) 기법을 적용할 수 있습니다.
         ])
     else:
         return A.Compose([

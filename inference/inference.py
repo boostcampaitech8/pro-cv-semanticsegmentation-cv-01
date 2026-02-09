@@ -155,7 +155,7 @@ def test():
     # ============================================================
     # [MODIFIED] CSV 저장 - Fine-tuning 구분
     # ============================================================
-    sample_sub_path = "sample_submission.csv"
+    sample_sub_path = "data/sample_submission.csv"
     if os.path.exists(sample_sub_path):
         sample_df = pd.read_csv(sample_sub_path)
         final_rles = []
